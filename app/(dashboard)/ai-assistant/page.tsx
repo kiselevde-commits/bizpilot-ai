@@ -18,6 +18,9 @@ type LeadOption = {
 type Analysis = {
   summary: string;
   leadScore: number;
+  category: string;
+  intent: string;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
   justification?: string;
   factors?: string[];
   recommendations?: string[];
@@ -160,6 +163,9 @@ export default function AIAssistantPage() {
         body: JSON.stringify({
           summary: analysis.summary,
           leadScore: analysis.leadScore,
+          category: analysis.category,
+          intent: analysis.intent,
+          priority: analysis.priority,
         }),
       });
 
@@ -270,9 +276,12 @@ export default function AIAssistantPage() {
 
           {analysis && (
             <div className="space-y-4 rounded-lg bg-muted p-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm font-medium">Результат анализа</div>
+              <div className="text-sm font-medium">Результат анализа</div>
+              <div className="flex flex-wrap items-center gap-2">
                 <Badge variant="outline">Оценка: {analysis.leadScore} / 100</Badge>
+                <Badge variant="outline">Категория: {analysis.category}</Badge>
+                <Badge variant="outline">Намерение: {analysis.intent}</Badge>
+                <Badge variant="outline">Приоритет: {analysis.priority}</Badge>
               </div>
 
               <div>

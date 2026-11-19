@@ -12,6 +12,9 @@ describe("AIAnalysisResponseSchema", () => {
   const valid = {
     summary: "Краткое резюме заявки",
     leadScore: 75,
+    category: "business_automation",
+    intent: "request",
+    priority: "HIGH",
     scoreBreakdown: { relevance: 80, urgency: 60 },
     justification: "Обоснование оценки",
     factors: ["Бюджет указан", "Сроки реалистичны"],
@@ -40,6 +43,12 @@ describe("AIAnalysisResponseSchema", () => {
 
     const tooHigh = AIAnalysisResponseSchema.safeParse({ ...valid, leadScore: 101 });
     expect(tooHigh.success).toBe(false);
+  });
+
+  it("отклоняет невалидную категорию, намерение и приоритет", () => {
+    expect(AIAnalysisResponseSchema.safeParse({ ...valid, category: "invalid" }).success).toBe(false);
+    expect(AIAnalysisResponseSchema.safeParse({ ...valid, intent: "invalid" }).success).toBe(false);
+    expect(AIAnalysisResponseSchema.safeParse({ ...valid, priority: "CRITICAL" }).success).toBe(false);
   });
 
   it("отклоняет non-integer leadScore", () => {

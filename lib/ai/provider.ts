@@ -1,9 +1,13 @@
 import "server-only";
 import { AppError } from "@/lib/errors";
+import type { LeadCategoryValue, LeadIntentValue, PriorityValue } from "@/lib/constants";
 
 export type AIAnalysisResult = {
   summary: string;
   leadScore: number;
+  category: LeadCategoryValue;
+  intent: LeadIntentValue;
+  priority: PriorityValue;
   scoreBreakdown: Record<string, number>;
   justification: string;
   factors: string[];
@@ -50,6 +54,18 @@ export class AIProviderError extends Error {
   }
 }
 
+function parseJsonContent(content: string): unknown {
+  const trimmed = content.trim();
+  const fenced = /^```(?:json)?\s*([\s\S]*?)\s*```$/i.exec(trimmed);
+  const candidate = fenced?.[1] ? fenced[1] : trimmed;
+
+  try {
+    return JSON.parse(candidate) as unknown;
+  } catch (cause) {
+    throw new AIProviderError("AI provider returned invalid JSON", { cause });
+  }
+}
+
 export function buildAIProvider(
   config: AIProviderConfig,
   mock: boolean,
@@ -80,6 +96,9 @@ export class MockAIProvider implements AIProvider {
       result: {
         summary: `Мок-анализ текста длиной ${textLength} символов`,
         leadScore: 50,
+        category: "business_automation",
+        intent: "request",
+        priority: "MEDIUM",
         scoreBreakdown: { relevance: 50, urgency: 50 },
         justification: "Моковый результат для разработки и тестирования",
         factors: ["Текст заявки получен", "Моковый провайдер"],
@@ -172,12 +191,7 @@ class OpenAICompatibleProvider implements AIProvider {
       throw new AIProviderError("AI provider returned empty response");
     }
 
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(content);
-    } catch (cause) {
-      throw new AIProviderError("AI provider returned invalid JSON", { cause });
-    }
+    const parsed = parseJsonContent(content);
 
     return {
       result: parsed as AIAnalysisResult,
@@ -199,6 +213,7 @@ class OpenAICompatibleProvider implements AIProvider {
       ],
       temperature: 0.3,
       max_tokens: input.maxOutputTokens,
+      response_format: { type: "json_object" },
     });
 
     if (!res.ok) {
@@ -220,8 +235,18 @@ class OpenAICompatibleProvider implements AIProvider {
       throw new AIProviderError("AI provider returned empty response");
     }
 
+    const parsed = parseJsonContent(content);
+    const draftReply =
+      typeof parsed === "object" && parsed !== null && "draftReply" in parsed
+        ? (parsed as { draftReply?: unknown }).draftReply
+        : undefined;
+
+    if (typeof draftReply !== "string" || draftReply.trim().length === 0) {
+      throw new AIProviderError("AI provider returned invalid reply JSON");
+    }
+
     return {
-      result: { draftReply: content },
+      result: { draftReply },
       tokensInput: data.usage?.prompt_tokens,
       tokensOutput: data.usage?.completion_tokens,
     };

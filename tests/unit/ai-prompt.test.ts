@@ -94,6 +94,9 @@ describe("buildSystemPrompt", () => {
     for (const field of [
       "summary",
       "leadScore",
+      "category",
+      "intent",
+      "priority",
       "scoreBreakdown",
       "justification",
       "factors",

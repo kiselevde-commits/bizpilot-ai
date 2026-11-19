@@ -1,8 +1,87 @@
-import { describe, expect, it } from "vitest";
-import { MockAIProvider } from "@/lib/ai/provider";
+import { describe, expect, it, vi, afterEach } from "vitest";
+import { MockAIProvider, buildAIProvider, AIProviderError } from "@/lib/ai/provider";
 import type { AIAnalysisResult, GenerateReplyResult } from "@/lib/ai/provider";
 import { AIAnalysisResponseSchema } from "@/lib/ai/schema";
 import { GenerateReplyResponseSchema } from "@/lib/ai/schema";
+
+describe("OpenAICompatibleProvider JSON parsing", () => {
+  const config = {
+    baseUrl: "https://example.test/v1",
+    apiKey: "test-key",
+    model: "test-model",
+    timeoutMs: 1000,
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("extracts draftReply from fenced JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '```json\n{"draftReply":"Здравствуйте!"}\n```' } }],
+            usage: { prompt_tokens: 10, completion_tokens: 5 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const provider = buildAIProvider(config, false);
+    const result = await provider.generateReply({
+      text: "Текст",
+      systemPrompt: "system",
+      maxOutputTokens: 100,
+    });
+
+    expect(result.result.draftReply).toBe("Здравствуйте!");
+  });
+
+  it("extracts analysis from plain JSON", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            choices: [{ message: { content: '{"summary":"ok","leadScore":10}' } }],
+            usage: { prompt_tokens: 10, completion_tokens: 5 },
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const provider = buildAIProvider(config, false);
+    const result = await provider.analyze({
+      text: "Текст",
+      systemPrompt: "system",
+      maxOutputTokens: 100,
+    });
+
+    expect(result.result.summary).toBe("ok");
+  });
+
+  it("throws AIProviderError on invalid JSON content", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({ choices: [{ message: { content: "not json" } }] }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+
+    const provider = buildAIProvider(config, false);
+
+    await expect(
+      provider.generateReply({ text: "Текст", systemPrompt: "system", maxOutputTokens: 100 }),
+    ).rejects.toBeInstanceOf(AIProviderError);
+  });
+});
 
 describe("MockAIProvider", () => {
   const provider = new MockAIProvider();
@@ -23,6 +102,9 @@ describe("MockAIProvider", () => {
       expect(result.result).toMatchObject({
         summary: expect.any(String),
         leadScore: expect.any(Number),
+        category: expect.any(String),
+        intent: expect.any(String),
+        priority: expect.any(String),
         scoreBreakdown: expect.any(Object),
         justification: expect.any(String),
         factors: expect.any(Array),
@@ -93,6 +175,9 @@ describe("MockAIProvider", () => {
       const result: AIAnalysisResult = {
         summary: "s",
         leadScore: 50,
+        category: "other",
+        intent: "info",
+        priority: "MEDIUM",
         scoreBreakdown: {},
         justification: "j",
         factors: [],
