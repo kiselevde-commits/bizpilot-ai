@@ -30,7 +30,11 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
       });
 
       if (!result || result.error) {
-        setError("Неверный email или пароль");
+        setError(
+          result?.code === "rate_limited"
+            ? "Слишком много попыток входа. Повторите через 15 минут."
+            : "Неверный email или пароль",
+        );
         return;
       }
 

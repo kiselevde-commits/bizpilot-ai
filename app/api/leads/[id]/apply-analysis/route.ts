@@ -4,6 +4,7 @@ import { buildAIProvider } from "@/lib/ai/provider";
 import { AIService } from "@/services/ai.service";
 import { assertJsonContentType, readJsonBody } from "@/lib/api/body-limit";
 import { handleApiError } from "@/lib/api/handle-error";
+import { assertSameOrigin } from "@/lib/api/origin";
 import { z } from "zod";
 
 const AI_BODY_LIMIT = 256 * 1024;
@@ -34,6 +35,7 @@ export async function POST(
     const user = await requireUser();
     const { id } = await params;
 
+    assertSameOrigin(request, process.env.APP_BASE_URL ?? request.nextUrl.origin);
     assertJsonContentType(request);
     const rawBody = await readJsonBody(request, AI_BODY_LIMIT);
 

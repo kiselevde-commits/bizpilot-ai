@@ -10,6 +10,7 @@ import {
 import { jsonSuccess, jsonError } from "@/lib/api/envelope";
 import { handleApiError } from "@/lib/api/handle-error";
 import { assertJsonContentType, readJsonBody } from "@/lib/api/body-limit";
+import { assertSameOrigin } from "@/lib/api/origin";
 
 const CONTACT_BODY_LIMIT = 64 * 1024;
 
@@ -70,6 +71,7 @@ export async function PATCH(
     const user = await requireUser();
     const { id } = await params;
 
+    assertSameOrigin(request, process.env.APP_BASE_URL ?? request.nextUrl.origin);
     assertJsonContentType(request);
     const rawBody = await readJsonBody(request, CONTACT_BODY_LIMIT);
     validateContactUpdateBody(rawBody);
@@ -111,6 +113,7 @@ export async function DELETE(
     requireRole(user, DELETE_ROLES);
     const { id } = await params;
 
+    assertSameOrigin(request, process.env.APP_BASE_URL ?? request.nextUrl.origin);
     await deleteContact(user, id);
 
     return NextResponse.json({ success: true, data: null, error: null });

@@ -5,6 +5,7 @@ import { jsonSuccess, jsonError } from "@/lib/api/envelope";
 import { handleApiError } from "@/lib/api/handle-error";
 import { assertJsonContentType, readJsonBody } from "@/lib/api/body-limit";
 import { paginationQuerySchema } from "@/lib/validation/query";
+import { assertSameOrigin } from "@/lib/api/origin";
 
 const TASK_BODY_LIMIT = 64 * 1024;
 
@@ -84,6 +85,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   try {
     const user = await requireUser();
 
+    assertSameOrigin(request, process.env.APP_BASE_URL ?? request.nextUrl.origin);
     assertJsonContentType(request);
     const rawBody = await readJsonBody(request, TASK_BODY_LIMIT);
     validateTaskBody(rawBody);

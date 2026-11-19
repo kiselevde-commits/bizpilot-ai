@@ -4,6 +4,8 @@ import { buildAIProvider } from "@/lib/ai/provider";
 import { AIService } from "@/services/ai.service";
 import { assertJsonContentType, readJsonBody } from "@/lib/api/body-limit";
 import { handleApiError } from "@/lib/api/handle-error";
+import { assertSameOrigin } from "@/lib/api/origin";
+import { checkRateLimit } from "@/lib/api/server-handler";
 import { z } from "zod";
 
 const AI_BODY_LIMIT = 256 * 1024;
@@ -18,6 +20,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     const user = await requireUser();
+
+    assertSameOrigin(request, process.env.APP_BASE_URL ?? request.nextUrl.origin);
+    checkRateLimit(`ai:user:${user.id}`, 10, 60 * 60 * 1000);
 
     assertJsonContentType(request);
     const rawBody = await readJsonBody(request, AI_BODY_LIMIT);
