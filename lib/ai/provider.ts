@@ -25,6 +25,7 @@ export type AIProviderConfig = {
 
 export interface AIProvider {
   readonly name: string;
+  readonly model: string;
 
   analyze(input: {
     text: string;
@@ -66,6 +67,7 @@ export function buildAIProvider(
 
 export class MockAIProvider implements AIProvider {
   readonly name = "mock";
+  readonly model = "mock";
 
   async analyze(input: {
     text: string;
@@ -76,11 +78,11 @@ export class MockAIProvider implements AIProvider {
 
     return {
       result: {
-        summary: `Мॉक-анализ текста длиной ${textLength} символов`,
+        summary: `Мок-анализ текста длиной ${textLength} символов`,
         leadScore: 50,
         scoreBreakdown: { relevance: 50, urgency: 50 },
-        justification: "Мॉकовый результат для разработки и тестирования",
-        factors: ["Текст заявки получен", "Мॉकовый провайдер"],
+        justification: "Моковый результат для разработки и тестирования",
+        factors: ["Текст заявки получен", "Моковый провайдер"],
         recommendations: ["Связаться с клиентом", "Уточнить требования"],
         risks: ["Недостаточно данных для точной оценки"],
         missingInfo: ["Контактное лицо", "Бюджет"],
@@ -109,6 +111,10 @@ class OpenAICompatibleProvider implements AIProvider {
   readonly name = "openai-compatible";
 
   constructor(private readonly config: AIProviderConfig) {}
+
+  get model(): string {
+    return this.config.model;
+  }
 
   private async request(path: string, body: unknown): Promise<Response> {
     const controller = new AbortController();

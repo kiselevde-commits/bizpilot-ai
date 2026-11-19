@@ -9,6 +9,7 @@ describe("MockAIProvider", () => {
 
   it("имеет имя 'mock'", () => {
     expect(provider.name).toBe("mock");
+    expect(provider.model).toBe("mock");
   });
 
   describe("analyze", () => {

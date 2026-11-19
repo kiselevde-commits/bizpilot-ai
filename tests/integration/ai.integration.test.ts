@@ -128,6 +128,7 @@ describe("AIService error handling (integration)", () => {
   it("AI_PROVIDER_ERROR при падении провайдера", async () => {
     const service = new AIService({
       name: "failing",
+      model: "failing-model",
       analyze: vi.fn().mockRejectedValue(new Error("boom")),
       generateReply: vi.fn().mockRejectedValue(new Error("boom")),
     });
@@ -143,6 +144,7 @@ describe("AIService error handling (integration)", () => {
   it("AI_INVALID_RESPONSE при невалидном JSON от провайдера", async () => {
     const service = new AIService({
       name: "bad-json",
+      model: "bad-json-model",
       analyze: vi.fn().mockResolvedValue({
         result: { summary: "no leadScore" },
         tokensInput: 10,
@@ -170,6 +172,7 @@ describe("AIService error handling (integration)", () => {
       .mockRejectedValue(new Error("second fail"));
     const service = new AIService({
       name: "retry-fail",
+      model: "retry-model",
       analyze,
       generateReply: vi.fn().mockResolvedValue({
         result: { draftReply: "ok" },

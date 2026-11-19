@@ -69,6 +69,7 @@ describe("AIService.analyze", () => {
     expect(result.analysis.leadScore).toBeGreaterThanOrEqual(0);
     expect(result.analysis.leadScore).toBeLessThanOrEqual(100);
     expect(result.provider).toBe("mock");
+    expect(result.model).toBe("mock");
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
 
     expect(prisma.aIAnalysis.create).toHaveBeenCalledTimes(1);
@@ -113,6 +114,7 @@ describe("AIService.generateReply", () => {
     expect(result.draftReply).toBeDefined();
     expect(result.draftReply.length).toBeLessThanOrEqual(800);
     expect(result.provider).toBe("mock");
+    expect(result.model).toBe("mock");
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
 
     expect(prisma.aIAnalysis.create).toHaveBeenCalledTimes(1);
@@ -378,6 +380,7 @@ describe("AIService error handling (integration)", () => {
   it("AI_PROVIDER_ERROR при падении провайдера", async () => {
     const service = new AIService({
       name: "failing",
+      model: "failing-model",
       analyze: vi.fn().mockRejectedValue(new Error("boom")),
       generateReply: vi.fn().mockRejectedValue(new Error("boom")),
     });
@@ -393,6 +396,7 @@ describe("AIService error handling (integration)", () => {
   it("AI_INVALID_RESPONSE при невалидном JSON от провайдера", async () => {
     const service = new AIService({
       name: "bad-json",
+      model: "bad-json-model",
       analyze: vi.fn().mockResolvedValue({
         result: { summary: "no leadScore" },
         tokensInput: 10,
@@ -420,6 +424,7 @@ describe("AIService error handling (integration)", () => {
       .mockRejectedValue(new Error("second fail"));
     const service = new AIService({
       name: "retry-fail",
+      model: "retry-model",
       analyze,
       generateReply: vi.fn().mockResolvedValue({
         result: { draftReply: "ok" },

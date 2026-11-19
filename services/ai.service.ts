@@ -514,7 +514,7 @@ export class AIService {
   }
 
   private getModel(): string {
-    return this.provider?.name ?? "unknown";
+    return this.provider?.model ?? "unknown";
   }
 
   private isRetryableProviderError(error: unknown): boolean {

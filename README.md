@@ -55,7 +55,7 @@ scripts/           # test-ai (ручной smoke с реальным provider)
 Требуется PostgreSQL 16.16 и Node.js 24.20.0.
 
 ```bash
-# 1. Установите зависимости (используйте Corepack, глобальный pnpm не駆動 installs)
+# 1. Установите зависимости (используйте Corepack, глобальный pnpm не запускай)
 corepack enable
 corepack prepare pnpm@9.15.9 --activate
 pnpm install --frozen-lockfile
