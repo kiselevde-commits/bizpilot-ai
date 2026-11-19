@@ -1,25 +1,25 @@
 import { Prisma } from "@prisma/client";
 import { ZodError } from "zod";
 import { AppError, isAppError } from "@/lib/errors";
-import { jsonError } from "@/lib/api/envelope";
+import { apiFailure, type ApiFailure } from "@/lib/api/envelope";
 
 type HandledError = {
   status: number;
-  body: ReturnType<typeof jsonError>;
+  body: ApiFailure;
 };
 
 export function handleApiError(error: unknown): HandledError {
   if (isAppError(error)) {
     return {
       status: error.status,
-      body: jsonError(error.code, error.message, error.status, error.details),
+      body: apiFailure(error.code, error.message, error.details),
     };
   }
 
   if (error instanceof ZodError) {
     return {
       status: 400,
-      body: jsonError("VALIDATION_ERROR", "Invalid request", 400, error.issues),
+      body: apiFailure("VALIDATION_ERROR", "Invalid request", error.issues),
     };
   }
 
@@ -27,21 +27,21 @@ export function handleApiError(error: unknown): HandledError {
     if (error.code === "P2002") {
       return {
         status: 409,
-        body: jsonError("CONFLICT", "Resource already exists", 409),
+        body: apiFailure("CONFLICT", "Resource already exists"),
       };
     }
 
     if (error.code === "P2003") {
       return {
         status: 409,
-        body: jsonError("ENTITY_IN_USE", "Entity is in use", 409),
+        body: apiFailure("ENTITY_IN_USE", "Entity is in use"),
       };
     }
 
     if (error.code === "P2025") {
       return {
         status: 404,
-        body: jsonError("NOT_FOUND", "Resource not found", 404),
+        body: apiFailure("NOT_FOUND", "Resource not found"),
       };
     }
   }
@@ -53,7 +53,7 @@ export function handleApiError(error: unknown): HandledError {
 
   return {
     status: 500,
-    body: jsonError("INTERNAL_ERROR", "Internal server error", 500),
+    body: apiFailure("INTERNAL_ERROR", "Internal server error"),
   };
 }
 

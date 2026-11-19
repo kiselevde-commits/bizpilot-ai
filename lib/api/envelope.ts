@@ -30,22 +30,27 @@ export function jsonSuccess<T>(data: T, init?: ResponseInit): NextResponse<ApiSu
   );
 }
 
+export function apiFailure(
+  code: ErrorCode,
+  message: string,
+  details?: unknown,
+): ApiFailure {
+  return {
+    success: false,
+    data: null,
+    error: {
+      code,
+      message,
+      ...(details === undefined ? {} : { details }),
+    },
+  };
+}
+
 export function jsonError(
   code: ErrorCode,
   message: string,
   status: number,
   details?: unknown,
 ): NextResponse<ApiFailure> {
-  return NextResponse.json(
-    {
-      success: false,
-      data: null,
-      error: {
-        code,
-        message,
-        ...(details === undefined ? {} : { details }),
-      },
-    },
-    { status },
-  );
+  return NextResponse.json(apiFailure(code, message, details), { status });
 }
