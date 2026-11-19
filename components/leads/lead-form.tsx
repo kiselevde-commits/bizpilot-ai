@@ -125,7 +125,7 @@ export function LeadForm({ initialData, mode, leadId }: LeadFormProps) {
       }
 
       toast.success(mode === "create" ? "Заявка создана" : "Заявка обновлена");
-      router.push(`/leads/${mode === "create" ? "" : leadId}`);
+      router.push(mode === "create" ? "/leads" : `/leads/${leadId}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка");
