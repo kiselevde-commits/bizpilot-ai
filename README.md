@@ -62,6 +62,7 @@ pnpm install --frozen-lockfile
 
 # 2. Настройте окружение
 cp .env.example .env
+# Укажите DATABASE_URL и SHADOW_DATABASE_URL (отдельная пустая база bizpilot_shadow)
 # Укажите SEED_ADMIN_PASSWORD (обязательно, без значения по умолчанию)
 # Укажите AUTH_SECRET
 
@@ -89,6 +90,8 @@ docker compose up -d --build
 # postgres: 127.0.0.1:5432
 ```
 
+Compose читает `AUTH_SECRET`, `SEED_ADMIN_PASSWORD`, `AI_*` и строки подключения из env-файла. Для Docker используйте `.env.docker.example` → `.env.docker` и запускайте `docker compose --env-file .env.docker up -d --build`. Сервис `migrate` применяет миграции и выполняет idempotent seed до старта `app`; healthcheck использует `node -e fetch(...)`, потому что `wget` в slim-образе отсутствует.
+
 n8n запускается отдельно: `docker compose --profile automation up -d` (этап 4; не установлен в Stage 1).
 
 ## Демо-учётные записи
@@ -101,7 +104,9 @@ n8n запускается отдельно: `docker compose --profile automatio
 | manager@demo.local | MANAGER |
 | operator@demo.local | OPERATOR |
 
-Демо-данные: 1 Workspace, 10 контактов, 20 заявок (`[DEMO]`), 15 задач, 2 интеграции (NOT_CONFIGURED).
+Пароль не хранится в репозитории и не имеет значения по умолчанию. Он берётся из переменной `SEED_ADMIN_PASSWORD` в вашем `.env` (при Docker — в env-файле, переданном Compose). Если значение неизвестно, задайте новое в `.env` и выполните `pnpm prisma:seed`: seed обновляет пароль демо-пользователей при повторном запуске.
+
+Демо-данные: 1 Workspace, 10 контактов, 20 заявок (`[DEMO]`), 15 задач, 2 интеграции (NOT_CONFIGURED). Повторный seed не создаёт дублей.
 
 ## Тесты
 
@@ -115,6 +120,8 @@ pnpm lint
 pnpm build
 pnpm format:check
 ```
+
+`pnpm build` собирает обычный production bundle. Standalone-сборка для Docker включается переменной `NEXT_OUTPUT_STANDALONE=true` (задана в `docker/Dockerfile`), чтобы локальная сборка на Windows не падала на symlink-операциях.
 
 ## Ограничения MVP
 

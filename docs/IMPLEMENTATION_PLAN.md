@@ -1,9 +1,9 @@
 # План реализации BizPilot AI
 
-**Версия:** 1.2 (этап 2 выполнено)  
+**Версия:** 1.3 (исправление критических дефектов)  
 **Дата:** 2026-11-19  
 **Источник:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24  
-**Текущий этап:** 2 CRUD и UI выполнены (UI); этап 1 проверки BLOCKED (нет Docker/PostgreSQL); этап 3 (AI) не начато — `POST /api/ai/analyze` отсутствует, только страница интеграции `/ai-assistant`
+**Текущий этап:** этапы 1–3 (foundation, CRUD/UI, AI backend) проверены на локальном PostgreSQL 16; исправлены 15 дефектов и дополнительные runtime-баги. Docker и реальный AI smoke — BLOCKED (нет Docker и AI credentials). Этап 4 не начат.
 
 ## Легенда статусов
 
@@ -467,3 +467,55 @@
 | ---------- | -------------------------------------------------------- |
 | 2026-11-19 | Создан план v1.0 по ТЗ v1.2; этап 0 DONE, этап 1 BLOCKED |
 | 2026-11-19 | Этап 3 AI завершён (бэкенд + 94 теста): analyze, apply-analysis, generate-reply, history, провайдеры, Zod, retry, таймаут, workspace isolation |
+| 2026-11-19 | Исправлены 15 критических дефектов; проверки на локальном PostgreSQL 16; Docker и реальный AI smoke — BLOCKED |
+
+## 14. Исправление критических дефектов (2026-11-19)
+
+### 14.1. Выполненные пункты и коммиты
+
+| №  | Изменение | Коммит | Проверка |
+| -- | --------- | ------ | -------- |
+| 1  | `Alert` берётся из `components/ui/alert` на Leads/Tasks/CRM | `821115d` | typecheck, lint |
+| 2  | Убран повторный `request.json()`; тело читается один раз через `readJsonBody` | `89c29a1` | typecheck, lint; API-смоук create |
+| 3  | `handleApiError` возвращает plain-envelope; роуты оборачивают один раз | `06302d4` | unit `handle-error.test.ts` (2) |
+| 4  | История AI фильтруется через `lead.workspaceId` | `6682924` | unit/integration обновлены |
+| 5  | `SHADOW_DATABASE_URL` синхронизирован в env/examples/Compose/docs; Docker init создаёт `bizpilot_shadow` | `f0620ed` | `prisma validate`, `prisma generate` |
+| 6  | Docker: context `.`, env wiring, seed в `migrate`, healthcheck `node -e fetch`, AI_PROVIDER из env | `b2ca785` | YAML распарсен; runtime Docker BLOCKED |
+| 7  | AI-assistant: вывод analysis, выбор заявки, кнопка «Применить» | `e4b6215` | UI-смоук analyze/apply |
+| 8  | Matcher `.*\..*` уже корректен; проверен редирект | `9b7ceb0` | `GET /dashboard` → 307 `/login`; API → 401 |
+| 9  | `requireRole(user, DELETE_ROLES)` во всех DELETE | `9a0fe66` | OPERATOR DELETE → 403 `FORBIDDEN` |
+| 10 | Rate limit логина (IP) и `/api/ai/*` (user); `assertSameOrigin` на мутациях | `984035d` | unit (5); POST без Origin → 403 |
+| 11 | GET-списки передают фильтры в сервисы | `448e6c2` | `?status=NEW` → только NEW |
+| 12 | Seed идемпотентен для контактов, заявок, задач | `0e6fed5` | два прогона: 1/3/10/20/15/2 без изменений |
+| 13 | `n8n_processed` остаётся SQL-миграцией, Prisma-модели нет | `63fa33e` | миграция применена; таблица существует |
+| 14 | apply-analysis и history не создают AI-провайдер | `fbecec0` | unit: apply/history без provider |
+| 15 | Исправлены «Мок/Оценка/поставь более низкую/не запускай»; `model` — реальная модель конфига | `a73c2c9` | unit: `model === "mock"` |
+| —  | Standalone-сборка включается `NEXT_OUTPUT_STANDALONE=true` (Docker), локальный build без symlink | `4fcc2a1` | `pnpm build` PASS |
+| —  | Дополнительно: history без page/limit, редирект после создания заявки, отступ контента под sidebar, raw SQL Dashboard | `8bda36b`, `dee2035`, `2d61178` | API + UI-смоук |
+
+### 14.2. Фактические проверки
+
+| Проверка | Команда/метод | Результат |
+| -------- | ------------- | --------- |
+| Typecheck | `pnpm typecheck` | PASS (0 ошибок) |
+| Lint | `pnpm lint` | PASS (0 ошибок, 1 warning `postcss.config.mjs`) |
+| Unit | `pnpm test:unit` | PASS (9 файлов, 96 тестов) |
+| Integration | `pnpm test:integration` | PASS (1 файл, 8 тестов) |
+| Build | `pnpm build` | PASS, 29 маршрутов |
+| Migrations | `npx prisma migrate deploy` | PASS (2 миграции, локальный PostgreSQL 16) |
+| Seed x2 | `npx prisma db seed` + подсчёт | 1 workspace / 3 users / 10 contacts / 20 leads / 15 tasks / 2 integrations, без дублей |
+| Auth redirect | `GET /dashboard` без сессии | 307 → `/login?callbackUrl=%2Fdashboard` |
+| API auth | `GET /api/leads` без сессии | 401 JSON |
+| Origin guard | POST `/api/leads` без `Origin` | 403 |
+| UI-смоук | Playwright: login admin → создать заявку → AI-анализ → «Применить» → история | PASS (mock AI), история 200 |
+| OPERATOR delete | DELETE `/api/leads/:id` | 403 `FORBIDDEN` |
+| Docker Compose | `docker compose up -d --build` | BLOCKED: Docker отсутствует локально, доступа к VPS не предоставлено |
+| Реальный AI | `pnpm test:ai` | BLOCKED: в `.env` нет `AI_API_KEY`/`AI_BASE_URL`/`AI_MODEL`; UI-смоук выполнен на явно разрешённом mock |
+
+### 14.3. Блокеры
+
+1. **Docker-приёмка** — на локальной Windows Docker не установлен (установка запрещена условиями), отдельный VPS недоступен.
+2. **Реальный AI smoke** — не настроены credentials провайдера. Mock использован только для проверки UI-сценария и явно помечен; как доказательство реального LLM не заявляется.
+3. **Telegram/n8n E2E** — этап 4 не начат по решению пользователя.
+
+Следующий шаг: предоставить Docker/VPS и AI credentials для закрытия пунктов приёмки; этап 4 без отдельного решения не начинать.
