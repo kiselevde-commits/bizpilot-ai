@@ -89,15 +89,13 @@ async function getLeadsByDay(
   startDate.setDate(now.getDate() - 13);
   startDate.setHours(0, 0, 0, 0);
 
-  const rows = await prisma.$queryRawUnsafe<{ date: string; count: bigstring }[]>(
-    `SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date, count(*)::bigint AS count
-     FROM "Lead"
-     WHERE workspace_id = $1 AND created_at >= $2
-     GROUP BY date
-     ORDER BY date ASC`,
-    workspaceId,
-    startDate,
-  );
+  const rows = await prisma.$queryRaw<{ date: string; count: bigint }[]>`
+    SELECT to_char("createdAt" AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS date, count(*)::bigint AS count
+    FROM "Lead"
+    WHERE "workspaceId" = ${workspaceId} AND "createdAt" >= ${startDate}
+    GROUP BY date
+    ORDER BY date ASC
+  `;
 
   const byDate = new Map<string, number>();
   for (const row of rows) {
@@ -115,8 +113,6 @@ async function getLeadsByDay(
 
   return result;
 }
-
-type bigstring = string;
 
 export async function hasDemoData(user: SessionUser): Promise<boolean> {
   const count = await prisma.lead.count({
