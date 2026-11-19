@@ -16,36 +16,30 @@ describe("neutralizeMarkers", () => {
   });
 
   it("нейтрализует стартовый маркер", () => {
-    expect(neutralizeMarkers(`<<<USER_INPUT>>>текст`)).toBe(
-      `<<<USER_INPUT_START>>>текст`,
-    );
+    expect(neutralizeMarkers(`<<<USER_INPUT>>>текст`)).toBe(`<<<USER_INPUT_START>>>текст`);
   });
 
   it("нейтрализует конечный маркер", () => {
-    expect(neutralizeMarkers(`текст<<<END_USER_INPUT>>>`)).toBe(
-      `текст<<<USER_INPUT_END>>>`,
-    );
+    expect(neutralizeMarkers(`текст<<<END_USER_INPUT>>>`)).toBe(`текст<<<USER_INPUT_END>>>`);
   });
 
   it("нейтрализует оба маркера", () => {
-    expect(
-      neutralizeMarkers(`<<<USER_INPUT>>>текст<<<END_USER_INPUT>>>`),
-    ).toBe(`<<<USER_INPUT_START>>>текст<<<USER_INPUT_END>>>`);
+    expect(neutralizeMarkers(`<<<USER_INPUT>>>текст<<<END_USER_INPUT>>>`)).toBe(
+      `<<<USER_INPUT_START>>>текст<<<USER_INPUT_END>>>`,
+    );
   });
 
   it("нейтрализует несколько вхождений", () => {
-    expect(
-      neutralizeMarkers(`<<<USER_INPUT>>>a<<<USER_INPUT>>>b`),
-    ).toBe(`<<<USER_INPUT_START>>>a<<<USER_INPUT_START>>>b`);
+    expect(neutralizeMarkers(`<<<USER_INPUT>>>a<<<USER_INPUT>>>b`)).toBe(
+      `<<<USER_INPUT_START>>>a<<<USER_INPUT_START>>>b`,
+    );
   });
 });
 
 describe("wrapUserInput", () => {
   it("оборачивает текст в маркеры с переносами строк", () => {
     const result = wrapUserInput("текст заявки");
-    expect(result).toBe(
-      `${USER_INPUT_MARKER_START}\nтекст заявки\n${USER_INPUT_MARKER_END}`,
-    );
+    expect(result).toBe(`${USER_INPUT_MARKER_START}\nтекст заявки\n${USER_INPUT_MARKER_END}`);
   });
 
   it("нейтрализует маркеры внутри текста перед оборачиванием", () => {

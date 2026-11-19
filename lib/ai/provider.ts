@@ -66,10 +66,7 @@ function parseJsonContent(content: string): unknown {
   }
 }
 
-export function buildAIProvider(
-  config: AIProviderConfig,
-  mock: boolean,
-): AIProvider {
+export function buildAIProvider(config: AIProviderConfig, mock: boolean): AIProvider {
   if (mock) {
     return new MockAIProvider();
   }
@@ -174,18 +171,12 @@ class OpenAICompatibleProvider implements AIProvider {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new AIProviderError(
-        `AI provider error: ${res.status} ${text}`,
-        { status: res.status },
-      );
+      throw new AIProviderError(`AI provider error: ${res.status} ${text}`, { status: res.status });
     }
 
     const data = await res.json();
 
-    const content =
-      data.choices?.[0]?.message?.content ??
-      data.choices?.[0]?.text ??
-      "";
+    const content = data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? "";
 
     if (!content) {
       throw new AIProviderError("AI provider returned empty response");
@@ -218,18 +209,12 @@ class OpenAICompatibleProvider implements AIProvider {
 
     if (!res.ok) {
       const text = await res.text().catch(() => "");
-      throw new AIProviderError(
-        `AI provider error: ${res.status} ${text}`,
-        { status: res.status },
-      );
+      throw new AIProviderError(`AI provider error: ${res.status} ${text}`, { status: res.status });
     }
 
     const data = await res.json();
 
-    const content =
-      data.choices?.[0]?.message?.content ??
-      data.choices?.[0]?.text ??
-      "";
+    const content = data.choices?.[0]?.message?.content ?? data.choices?.[0]?.text ?? "";
 
     if (!content) {
       throw new AIProviderError("AI provider returned empty response");

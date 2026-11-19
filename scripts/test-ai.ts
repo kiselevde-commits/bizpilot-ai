@@ -44,7 +44,9 @@ async function main(): Promise<void> {
   }
 
   if (process.env.AI_PROVIDER === "mock" || process.env.ALLOW_MOCK_AI === "true") {
-    fail("Refusing to run: mock AI is enabled. Set AI_PROVIDER=openai-compatible and ALLOW_MOCK_AI=false.");
+    fail(
+      "Refusing to run: mock AI is enabled. Set AI_PROVIDER=openai-compatible and ALLOW_MOCK_AI=false.",
+    );
   }
 
   const config: AIProviderConfig = {
@@ -150,7 +152,9 @@ async function main(): Promise<void> {
       systemPrompt: buildSystemPrompt(),
       maxOutputTokens: 16,
     });
-    console.error(JSON.stringify({ check: "timeout", handled: false, reason: "request did not abort" }));
+    console.error(
+      JSON.stringify({ check: "timeout", handled: false, reason: "request did not abort" }),
+    );
     process.exit(1);
   } catch (error) {
     const name = error instanceof Error ? error.name : "UnknownError";
@@ -178,7 +182,9 @@ async function main(): Promise<void> {
       systemPrompt: buildSystemPrompt(),
       maxOutputTokens: 16,
     });
-    console.error(JSON.stringify({ check: "provider-error", handled: false, reason: "request succeeded" }));
+    console.error(
+      JSON.stringify({ check: "provider-error", handled: false, reason: "request succeeded" }),
+    );
     process.exit(1);
   } catch (error) {
     if (!(error instanceof AIProviderError)) {

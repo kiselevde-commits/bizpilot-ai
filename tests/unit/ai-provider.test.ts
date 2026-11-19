@@ -67,12 +67,14 @@ describe("OpenAICompatibleProvider JSON parsing", () => {
   it("throws AIProviderError on invalid JSON content", async () => {
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({ choices: [{ message: { content: "not json" } }] }),
-          { status: 200, headers: { "Content-Type": "application/json" } },
+      vi
+        .fn()
+        .mockResolvedValue(
+          new Response(JSON.stringify({ choices: [{ message: { content: "not json" } }] }), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
         ),
-      ),
     );
 
     const provider = buildAIProvider(config, false);
@@ -158,12 +160,7 @@ describe("MockAIProvider", () => {
         maxOutputTokens: 4000,
       });
 
-      for (const field of [
-        "factors",
-        "recommendations",
-        "risks",
-        "missingInfo",
-      ] as const) {
+      for (const field of ["factors", "recommendations", "risks", "missingInfo"] as const) {
         const arr = result.result[field];
         expect(Array.isArray(arr)).toBe(true);
         expect(arr.length).toBeGreaterThan(0);

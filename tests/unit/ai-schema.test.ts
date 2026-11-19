@@ -46,9 +46,13 @@ describe("AIAnalysisResponseSchema", () => {
   });
 
   it("отклоняет невалидную категорию, намерение и приоритет", () => {
-    expect(AIAnalysisResponseSchema.safeParse({ ...valid, category: "invalid" }).success).toBe(false);
+    expect(AIAnalysisResponseSchema.safeParse({ ...valid, category: "invalid" }).success).toBe(
+      false,
+    );
     expect(AIAnalysisResponseSchema.safeParse({ ...valid, intent: "invalid" }).success).toBe(false);
-    expect(AIAnalysisResponseSchema.safeParse({ ...valid, priority: "CRITICAL" }).success).toBe(false);
+    expect(AIAnalysisResponseSchema.safeParse({ ...valid, priority: "CRITICAL" }).success).toBe(
+      false,
+    );
   });
 
   it("отклоняет non-integer leadScore", () => {

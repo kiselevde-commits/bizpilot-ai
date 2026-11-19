@@ -17,22 +17,22 @@
 
 ## Стек
 
-| Компонент | Версия |
-|---|---|
-| Node.js | 24.20.0 LTS |
-| pnpm | 9.15.9 (через Corepack) |
-| Next.js | 15.5.29 (App Router) |
-| React / React DOM | 19.1.10 |
-| TypeScript | 5.9.3 (strict) |
-| Prisma / @prisma/client | 6.19.3 |
-| PostgreSQL | 16.16 (`postgres:16.16-alpine`) |
-| Auth.js (next-auth) | 5.0.0-beta.32 |
-| Zod | 3.25.76 |
-| Tailwind CSS | 3.4.19 |
-| bcryptjs | 3.0.3 |
-| ESLint | 9.39.5 |
-| Vitest | 5.1.1 |
-| Playwright | 1.65.1 |
+| Компонент               | Версия                          |
+| ----------------------- | ------------------------------- |
+| Node.js                 | 24.20.0 LTS                     |
+| pnpm                    | 9.15.9 (через Corepack)         |
+| Next.js                 | 15.5.29 (App Router)            |
+| React / React DOM       | 19.1.10                         |
+| TypeScript              | 5.9.3 (strict)                  |
+| Prisma / @prisma/client | 6.19.3                          |
+| PostgreSQL              | 16.16 (`postgres:16.16-alpine`) |
+| Auth.js (next-auth)     | 5.0.0-beta.32                   |
+| Zod                     | 3.25.76                         |
+| Tailwind CSS            | 3.4.19                          |
+| bcryptjs                | 3.0.3                           |
+| ESLint                  | 9.39.5                          |
+| Vitest                  | 5.1.1                           |
+| Playwright              | 1.65.1                          |
 
 Полный перечень версий — в `docs/ARCHITECTURE.md`.
 
@@ -98,15 +98,38 @@ n8n запускается отдельно: `docker compose --profile automatio
 
 Все три пользователя используют один пароль из `SEED_ADMIN_PASSWORD`:
 
-| Email | Роль |
-|---|---|
-| admin@demo.local | ADMIN |
-| manager@demo.local | MANAGER |
+| Email               | Роль     |
+| ------------------- | -------- |
+| admin@demo.local    | ADMIN    |
+| manager@demo.local  | MANAGER  |
 | operator@demo.local | OPERATOR |
 
 Пароль не хранится в репозитории и не имеет значения по умолчанию. Он берётся из переменной `SEED_ADMIN_PASSWORD` в вашем `.env` (при Docker — в env-файле, переданном Compose). Если значение неизвестно, задайте новое в `.env` и выполните `pnpm prisma:seed`: seed обновляет пароль демо-пользователей при повторном запуске.
 
 Демо-данные: 1 Workspace, 10 контактов, 20 заявок (`[DEMO]`), 15 задач, 2 интеграции (NOT_CONFIGURED). Повторный seed не создаёт дублей.
+
+## AI-провайдер
+
+Поддерживается любой OpenAI-compatible endpoint. Пример для Yandex AI Studio:
+
+```env
+AI_PROVIDER=openai-compatible
+ALLOW_MOCK_AI=false
+AI_BASE_URL=https://ai.api.cloud.yandex.net/v1
+AI_MODEL=gpt://<folder-id>/aliceai-llm-flash/latest
+AI_API_KEY=<ваш API-ключ>
+AI_TIMEOUT_MS=60000
+```
+
+Список доступных моделей: `GET ${AI_BASE_URL}/models` с заголовком `Authorization: Bearer <ключ>`. Модель указывается полным URI `gpt://<folder-id>/<model>/latest`.
+
+Проверка реального провайдера:
+
+```bash
+pnpm test:ai
+```
+
+Скрипт отказывается работать при `AI_PROVIDER=mock` или `ALLOW_MOCK_AI=true`, проверяет реальный HTTP-запрос, JSON, Zod-валидацию, category/intent/priority/leadScore, summary, draft_reply, timeout и ошибку провайдера. Ключи не выводятся.
 
 ## Тесты
 

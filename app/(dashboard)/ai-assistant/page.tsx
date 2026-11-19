@@ -66,7 +66,8 @@ export default function AIAssistantPage() {
         if (!cancelled) setHealth(data);
       })
       .catch((err) => {
-        if (!cancelled) setHealthError(err instanceof Error ? err.message : "AI service unavailable");
+        if (!cancelled)
+          setHealthError(err instanceof Error ? err.message : "AI service unavailable");
       });
 
     return () => {
@@ -105,7 +106,9 @@ export default function AIAssistantPage() {
 
   useEffect(() => {
     if (!selectedLead?.message) return;
-    setInputText((current) => (current.trim().length === 0 ? selectedLead.message ?? "" : current));
+    setInputText((current) =>
+      current.trim().length === 0 ? (selectedLead.message ?? "") : current,
+    );
   }, [selectedLead]);
 
   const handleLeadChange = (value: string) => {
@@ -197,16 +200,12 @@ export default function AIAssistantPage() {
         </CardHeader>
         <CardContent>
           {healthError && (
-            <div className="text-sm text-destructive">
-              AI-провайдер недоступен: {healthError}
-            </div>
+            <div className="text-sm text-destructive">AI-провайдер недоступен: {healthError}</div>
           )}
           {health && (
             <div className="flex items-center gap-3">
               <Badge variant="secondary">Активен</Badge>
-              <span className="text-sm text-muted-foreground">
-                Статус: {health.status}
-              </span>
+              <span className="text-sm text-muted-foreground">Статус: {health.status}</span>
             </div>
           )}
           {!health && !healthError && (
@@ -248,9 +247,7 @@ export default function AIAssistantPage() {
 
           <form onSubmit={handleAnalyze} className="space-y-4">
             <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-muted-foreground">
-                Текст для анализа
-              </label>
+              <label className="text-sm font-medium text-muted-foreground">Текст для анализа</label>
               <textarea
                 className="h-48 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 value={inputText}
@@ -260,16 +257,13 @@ export default function AIAssistantPage() {
                 rows={4}
               />
             </div>
-            <Button
-              type="submit"
-              disabled={analyzing || !inputText.trim() || !selectedLeadId}
-            >
+            <Button type="submit" disabled={analyzing || !inputText.trim() || !selectedLeadId}>
               {analyzing ? "Анализ…" : "Анализировать"}
             </Button>
           </form>
 
           {error && (
-            <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-destructive text-sm">
+            <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
               {error}
             </div>
           )}
@@ -286,13 +280,13 @@ export default function AIAssistantPage() {
 
               <div>
                 <div className="text-xs font-medium text-muted-foreground">Резюме</div>
-                <div className="text-sm whitespace-pre-wrap">{analysis.summary}</div>
+                <div className="whitespace-pre-wrap text-sm">{analysis.summary}</div>
               </div>
 
               {analysis.justification && (
                 <div>
                   <div className="text-xs font-medium text-muted-foreground">Обоснование</div>
-                  <div className="text-sm whitespace-pre-wrap">{analysis.justification}</div>
+                  <div className="whitespace-pre-wrap text-sm">{analysis.justification}</div>
                 </div>
               )}
 
@@ -306,9 +300,7 @@ export default function AIAssistantPage() {
                   {applying ? "Применение…" : applied ? "Применено" : "Применить"}
                 </Button>
                 {applied && (
-                  <span className="text-xs text-muted-foreground">
-                    Результат сохранён в заявке
-                  </span>
+                  <span className="text-xs text-muted-foreground">Результат сохранён в заявке</span>
                 )}
               </div>
             </div>

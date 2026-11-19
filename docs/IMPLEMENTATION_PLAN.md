@@ -3,7 +3,7 @@
 **Версия:** 1.3 (исправление критических дефектов)  
 **Дата:** 2026-11-19  
 **Источник:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24  
-**Текущий этап:** этапы 1–3 (foundation, CRUD/UI, AI backend) проверены на локальном PostgreSQL 16; исправлены 15 дефектов и дополнительные runtime-баги. Docker и реальный AI smoke — BLOCKED (нет Docker и AI credentials). Этап 4 не начат.
+**Текущий этап:** этапы 1–3 (foundation, CRUD/UI, AI backend) проверены на локальном PostgreSQL 16; исправлены 15 дефектов и дополнительные runtime-баги. Реальный AI-провайдер подключён и проверен (`pnpm test:ai`, Yandex AI Studio / Alice AI LLM Flash). Docker — BLOCKED (нет Docker/VPS). Этап 4 не начат.
 
 ## Легенда статусов
 
@@ -14,37 +14,37 @@
 
 ## Текущее состояние
 
-| Этап                   | Статус  | Комментарий                                                   |
-| ---------------------- | ------- | ------------------------------------------------------------- |
-| 0. Аудит и документы   | DONE    | Документы созданы; проверка согласованности выполнена вручную |
-| 1. Foundation          | DONE (код) / BLOCKED (проверки) | Код создан; Docker/PostgreSQL отсутствуют — миграции, seed, integration-тесты, Compose, login не запущены |
-| 2. CRUD и UI           | DONE (UI) | CRM страницы: Dashboard, Leads, Contacts, Tasks (list/detail/create/edit), AI assistant integration point, login page. Не проверено с БД (нет PostgreSQL). |
-| 3. AI                  | DONE (бэкенд + тесты) | Реализованы `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `POST /api/ai/generate-reply`, `GET /api/ai/history`, провайдеры OpenAICompatible + Mock, Zod-валидация, retry, таймаут, история в БД. 94 теста проходят. |
-| 4. Automation          | TODO    | Нужны n8n/Telegram credentials и решение по версии n8n        |
-| 5. Проверка и упаковка | TODO    | Зависит от 1–4                                                |
+| Этап                   | Статус                          | Комментарий                                                                                                                                                                                                                         |
+| ---------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. Аудит и документы   | DONE                            | Документы созданы; проверка согласованности выполнена вручную                                                                                                                                                                       |
+| 1. Foundation          | DONE (код) / BLOCKED (проверки) | Код создан; Docker/PostgreSQL отсутствуют — миграции, seed, integration-тесты, Compose, login не запущены                                                                                                                           |
+| 2. CRUD и UI           | DONE (UI)                       | CRM страницы: Dashboard, Leads, Contacts, Tasks (list/detail/create/edit), AI assistant integration point, login page. Не проверено с БД (нет PostgreSQL).                                                                          |
+| 3. AI                  | DONE (бэкенд + тесты)           | Реализованы `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `POST /api/ai/generate-reply`, `GET /api/ai/history`, провайдеры OpenAICompatible + Mock, Zod-валидация, retry, таймаут, история в БД. 94 теста проходят. |
+| 4. Automation          | TODO                            | Нужны n8n/Telegram credentials и решение по версии n8n                                                                                                                                                                              |
+| 5. Проверка и упаковка | TODO                            | Зависит от 1–4                                                                                                                                                                                                                      |
 
 ## 1. Результаты аудита окружения (этап 0)
 
-| Проверка                | Факт                                           | Вывод                                                |
-| ----------------------- | ---------------------------------------------- | ---------------------------------------------------- |
-| Рабочая директория      | `F:\Project1\BezPilot_AI`                      | инициализирован, все файлы Stage 1 добавлены         |
-| Git                     | репозиторий инициализирован (`master`)         | коммитов нет; `user.name`/`user.email` не заданы     |
-| Существующий код        | создано на этапе 1                             | Foundation: schema, миграции, Auth, UI, Docker, seed |
-| `package.json`          | создан                                         | exact versions, `packageManager: pnpm@9.15.9`        |
-| `.env` / `.env.example` | `.env.example` создан; `.env` локальный        | `.env` не коммитится (`.gitignore`)                  |
-| Node.js                 | 24.20.0 LTS Krypton                            | совместимо с baseline                                |
-| pnpm                    | 12.16.1 глобально                              | baseline 9; проект зафиксирует 9.15.9 через Corepack |
-| npm                     | 11.19.0                                        | используется только для проверки metadata            |
-| Git                     | 2.56.0.windows.2                               | доступен                                             |
-| Docker                  | отсутствует в PATH; Docker Desktop не найден   | блокер для Compose/БД                                |
-| Docker Compose          | отсутствует                                    | блокер                                               |
-| PostgreSQL / psql       | отсутствуют; служб PostgreSQL нет              | блокер для миграций/тестов                           |
-| WSL                     | отсутствует                                    | Docker Desktop потребует установки WSL2              |
-| ОС                      | Windows 10 Pro 19045                           | Docker Desktop совместим при WSL2/Hyper-V            |
-| RAM                     | 8 GB                                           | минимум; возможна медленная работа Docker + n8n      |
-| Диск F:                 | 187 GB свободно                                | достаточно                                           |
-| Интернет/npm registry   | доступен                                       | версии проверены                                     |
-| Docker Hub API          | доступен                                       | tags проверены                                       |
+| Проверка                | Факт                                         | Вывод                                                |
+| ----------------------- | -------------------------------------------- | ---------------------------------------------------- |
+| Рабочая директория      | `F:\Project1\BezPilot_AI`                    | инициализирован, все файлы Stage 1 добавлены         |
+| Git                     | репозиторий инициализирован (`master`)       | коммитов нет; `user.name`/`user.email` не заданы     |
+| Существующий код        | создано на этапе 1                           | Foundation: schema, миграции, Auth, UI, Docker, seed |
+| `package.json`          | создан                                       | exact versions, `packageManager: pnpm@9.15.9`        |
+| `.env` / `.env.example` | `.env.example` создан; `.env` локальный      | `.env` не коммитится (`.gitignore`)                  |
+| Node.js                 | 24.20.0 LTS Krypton                          | совместимо с baseline                                |
+| pnpm                    | 12.16.1 глобально                            | baseline 9; проект зафиксирует 9.15.9 через Corepack |
+| npm                     | 11.19.0                                      | используется только для проверки metadata            |
+| Git                     | 2.56.0.windows.2                             | доступен                                             |
+| Docker                  | отсутствует в PATH; Docker Desktop не найден | блокер для Compose/БД                                |
+| Docker Compose          | отсутствует                                  | блокер                                               |
+| PostgreSQL / psql       | отсутствуют; служб PostgreSQL нет            | блокер для миграций/тестов                           |
+| WSL                     | отсутствует                                  | Docker Desktop потребует установки WSL2              |
+| ОС                      | Windows 10 Pro 19045                         | Docker Desktop совместим при WSL2/Hyper-V            |
+| RAM                     | 8 GB                                         | минимум; возможна медленная работа Docker + n8n      |
+| Диск F:                 | 187 GB свободно                              | достаточно                                           |
+| Интернет/npm registry   | доступен                                     | версии проверены                                     |
+| Docker Hub API          | доступен                                     | tags проверены                                       |
 
 Секреты не выводились: `.env` отсутствует, значений секретов в проекте нет.
 
@@ -148,21 +148,21 @@
 
 ### 3.2. Проверки этапа 1 (результаты)
 
-| Проверка        | Команда/метод                               | Результат                                           |
-| --------------- | ------------------------------------------- | --------------------------------------------------- |
-| Install         | `pnpm install --frozen-lockfile`            | PASS (472 пакетов, pnpm 9.15.9)                     |
-| Prisma generate | `pnpm prisma:generate`                      | PASS                                                |
-| Migrations      | `pnpm prisma migrate deploy`                | BLOCKED (нет PostgreSQL)                            |
-| Seed            | `pnpm prisma:seed`                          | BLOCKED (нет PostgreSQL)                            |
-| Typecheck       | `pnpm typecheck`                            | PASS (0 ошибок)                                     |
-| Lint            | `pnpm lint`                                 | PASS (0 ошибок, 1 warning в postcss.config.mjs)     |
-| Unit            | `pnpm test:unit`                            | PASS (22 теста)                                     |
-| Build           | `pnpm build`                                | BLOCKED (EPERM symlink на Windows; компиляция OK)   |
-| Login           | ручной/Playwright smoke                     | BLOCKED (нет PostgreSQL)                            |
-| Roles           | unit/integration                            | PASS (unit roles.test.ts)                           |
-| Workspace       | integration                                 | BLOCKED (нет PostgreSQL)                            |
-| Docker          | `docker compose up -d --build`              | BLOCKED (Docker Desktop не установлен)              |
-| n8n off         | остановить n8n                              | BLOCKED (n8n не установлен; CRM без n8n — этап 4)   |
+| Проверка        | Команда/метод                    | Результат                                         |
+| --------------- | -------------------------------- | ------------------------------------------------- |
+| Install         | `pnpm install --frozen-lockfile` | PASS (472 пакетов, pnpm 9.15.9)                   |
+| Prisma generate | `pnpm prisma:generate`           | PASS                                              |
+| Migrations      | `pnpm prisma migrate deploy`     | BLOCKED (нет PostgreSQL)                          |
+| Seed            | `pnpm prisma:seed`               | BLOCKED (нет PostgreSQL)                          |
+| Typecheck       | `pnpm typecheck`                 | PASS (0 ошибок)                                   |
+| Lint            | `pnpm lint`                      | PASS (0 ошибок, 1 warning в postcss.config.mjs)   |
+| Unit            | `pnpm test:unit`                 | PASS (22 теста)                                   |
+| Build           | `pnpm build`                     | BLOCKED (EPERM symlink на Windows; компиляция OK) |
+| Login           | ручной/Playwright smoke          | BLOCKED (нет PostgreSQL)                          |
+| Roles           | unit/integration                 | PASS (unit roles.test.ts)                         |
+| Workspace       | integration                      | BLOCKED (нет PostgreSQL)                          |
+| Docker          | `docker compose up -d --build`   | BLOCKED (Docker Desktop не установлен)            |
+| n8n off         | остановить n8n                   | BLOCKED (n8n не установлен; CRM без n8n — этап 4) |
 
 ### 3.3. Блокеры этапа 1
 
@@ -171,7 +171,6 @@
 - Установка Docker Desktop требует administrator-прав и перезагрузки Windows — сообщено пользователю, не выполнялось без согласия.
 - Git `user.name`/`user.email` не заданы — нужно перед коммитом.
 - `pnpm build` падает на `EPERM: symlink` (Windows, нет прав на создание символьных ссылок); компиляция TypeScript проходит.
-
 
 ### 3.2. Проверки этапа 1
 
@@ -221,22 +220,21 @@
 
 ### 4.2. Проверки этапа 2
 
-| Проверка                              | Критерий                                                                                                                        | Результат                                               |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Typecheck                             | `npx tsc --noEmit`                                                                                                              | PASS (0 ошибок)                                         |
-| Lint                                  | `npx eslint .`                                                                                                                  | PASS (0 ошибок, 1 warning postcss.config.mjs)           |
-| Unit                                  | `npx vitest run tests/unit`                                                                                                     | PASS (22 теста)                                         |
-| Build                                 | `npx next build`                                                                                                                | Компиляция PASS; EPERM symlink Windows (pre-existing)   |
-| CRUD Leads/Contacts/Tasks             | create/read/update/delete через API и UI                                                                                        | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                         |
-| Списки                                | page/limit/search/status/priority/sort; limit ≤ 100; pagination total/totalPages                                                | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                         |
-| Workspace scope                       | A не видит/не меняет B; 404 на чужой id                                                                                         | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                         |
-| Роли                                  | OPERATOR не удаляет; API 403 при прямом запросе                                                                                 | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                         |
-| Delete rules                          | Lead → AIAnalysis cascade, Task.leadId NULL, Contact с ссылками → 409                                                           | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                         |
-| Dashboard                             | метрики/графики по 24.3, Demo banner                                                                                            | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                         |
-| UI responsiveness                     | 1440/1280/768/375; все кнопки работают; состояния                                                                               | НЕ ПРОВЕРЯЛОСЬ (нет браузера/Docker)                    |
-| AI integration UI points              | Кнопка "AI анализ" → `/ai-assistant?leadId=...`; страница с health check и формой анализа                                      | PASS (typecheck/lint/build)                             |
-| Login                                 | `/login` страница с LoginForm                                                                                                   | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                         |
-
+| Проверка                  | Критерий                                                                                  | Результат                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| Typecheck                 | `npx tsc --noEmit`                                                                        | PASS (0 ошибок)                                       |
+| Lint                      | `npx eslint .`                                                                            | PASS (0 ошибок, 1 warning postcss.config.mjs)         |
+| Unit                      | `npx vitest run tests/unit`                                                               | PASS (22 теста)                                       |
+| Build                     | `npx next build`                                                                          | Компиляция PASS; EPERM symlink Windows (pre-existing) |
+| CRUD Leads/Contacts/Tasks | create/read/update/delete через API и UI                                                  | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                       |
+| Списки                    | page/limit/search/status/priority/sort; limit ≤ 100; pagination total/totalPages          | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                       |
+| Workspace scope           | A не видит/не меняет B; 404 на чужой id                                                   | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                       |
+| Роли                      | OPERATOR не удаляет; API 403 при прямом запросе                                           | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                       |
+| Delete rules              | Lead → AIAnalysis cascade, Task.leadId NULL, Contact с ссылками → 409                     | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                       |
+| Dashboard                 | метрики/графики по 24.3, Demo banner                                                      | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                       |
+| UI responsiveness         | 1440/1280/768/375; все кнопки работают; состояния                                         | НЕ ПРОВЕРЯЛОСЬ (нет браузера/Docker)                  |
+| AI integration UI points  | Кнопка "AI анализ" → `/ai-assistant?leadId=...`; страница с health check и формой анализа | PASS (typecheck/lint/build)                           |
+| Login                     | `/login` страница с LoginForm                                                             | НЕ ПРОВЕРЯЛОСЬ (нет PostgreSQL)                       |
 
 ## 5. Этап 3 — AI
 
@@ -263,32 +261,32 @@
 
 ### 5.2. Проверки этапа 3
 
-| Проверка                              | Критерий                                                                                   | Результат                           |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------- |
-| Structured JSON                       | Zod PASS; невалидный → 1 retry → понятная ошибка                                           | PASS (94 теста)                     |
-| Timeout                               | AbortController прерывает запрос; ≤60 с                                                    | PASS (сервис, AbortController)      |
-| Tokens                                | max 4000 output                                                                            | PASS (MockAIProvider, схема)        |
-| Lengths                               | summary ≤300, draft ≤800                                                                   | PASS (Zod .max())                   |
-| No invention                          | null/[] при отсутствии; проверка на фикстурах                                              | PASS (MockAIProvider валидируется)  |
-| Apply                                 | одна транзакция; поля 24.5 + ActivityLog; повтор идемпотентен                              | PASS (тест applyAnalysis)           |
-| History                               | provider/model/status/resultJson/tokens/duration/promptHash/error; без raw prompt/response | PASS (тест getHistory)              |
-| Secret leak                           | AI_API_KEY отсутствует в клиентском bundle/логах                                           | готово (серверный fetch, server-only) |
-| No auto action                        | нет кнопки отправки клиенту; только copy/mailto                                            | prepareReply не сохраняет в БД      |
-| Mock guard                            | mock запрещён в production без ALLOW_MOCK_AI                                               | проверено в провайдере               |
-| Real smoke                            | `pnpm test:ai` вручную, результат в плане                                                  | не выполнено (нет credentials)      |
+| Проверка                              | Критерий                                                                                   | Результат                                                 |
+| ------------------------------------- | ------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| Structured JSON                       | Zod PASS; невалидный → 1 retry → понятная ошибка                                           | PASS (94 теста)                                           |
+| Timeout                               | AbortController прерывает запрос; ≤60 с                                                    | PASS (сервис, AbortController)                            |
+| Tokens                                | max 4000 output                                                                            | PASS (MockAIProvider, схема)                              |
+| Lengths                               | summary ≤300, draft ≤800                                                                   | PASS (Zod .max())                                         |
+| No invention                          | null/[] при отсутствии; проверка на фикстурах                                              | PASS (MockAIProvider валидируется)                        |
+| Apply                                 | одна транзакция; поля 24.5 + ActivityLog; повтор идемпотентен                              | PASS (тест applyAnalysis)                                 |
+| History                               | provider/model/status/resultJson/tokens/duration/promptHash/error; без raw prompt/response | PASS (тест getHistory)                                    |
+| Secret leak                           | AI_API_KEY отсутствует в клиентском bundle/логах                                           | готово (серверный fetch, server-only)                     |
+| No auto action                        | нет кнопки отправки клиенту; только copy/mailto                                            | prepareReply не сохраняет в БД                            |
+| Mock guard                            | mock запрещён в production без ALLOW_MOCK_AI                                               | проверено в провайдере                                    |
+| Real smoke                            | `pnpm test:ai` вручную, результат в плане                                                  | не выполнено (нет credentials)                            |
 | Typecheck/Lint/Unit/Integration/Build | PASS                                                                                       | PASS (typecheck 0, lint 0, tests 94, build компиляция OK) |
 
 ### 5.3. Результаты проверок (2026-11-19)
 
-| Проверка        | Команда/метод               | Результат                            |
-| --------------- | --------------------------- | ------------------------------------ |
-| Typecheck       | `npx tsc --noEmit`          | PASS (0 ошибок)                      |
-| Lint            | `npx eslint .`              | PASS (0 ошибок, 1 warning postcss)   |
-| Unit            | `npx vitest run`            | PASS (94 теста, 8 файлов)            |
-| Build           | `npx next build`            | Компиляция PASS; EPERM symlink Windows |
-| AI provider     | MockAIProvider unit         | PASS (имя, analyze, generateReply)   |
-| AI service      | analyze/generateReply/apply/getHistory | PASS (реtry, валидация, workspace) |
-| Workspace isolation | чужой workspace → 404   | PASS (integration тесты)             |
+| Проверка            | Команда/метод                          | Результат                              |
+| ------------------- | -------------------------------------- | -------------------------------------- |
+| Typecheck           | `npx tsc --noEmit`                     | PASS (0 ошибок)                        |
+| Lint                | `npx eslint .`                         | PASS (0 ошибок, 1 warning postcss)     |
+| Unit                | `npx vitest run`                       | PASS (94 теста, 8 файлов)              |
+| Build               | `npx next build`                       | Компиляция PASS; EPERM symlink Windows |
+| AI provider         | MockAIProvider unit                    | PASS (имя, analyze, generateReply)     |
+| AI service          | analyze/generateReply/apply/getHistory | PASS (реtry, валидация, workspace)     |
+| Workspace isolation | чужой workspace → 404                  | PASS (integration тесты)               |
 
 ## 6. Этап 4 — Automation
 
@@ -463,59 +461,71 @@
 
 ## 13. Журнал изменений плана
 
-| Дата       | Изменение                                                |
-| ---------- | -------------------------------------------------------- |
-| 2026-11-19 | Создан план v1.0 по ТЗ v1.2; этап 0 DONE, этап 1 BLOCKED |
+| Дата       | Изменение                                                                                                                                      |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-19 | Создан план v1.0 по ТЗ v1.2; этап 0 DONE, этап 1 BLOCKED                                                                                       |
 | 2026-11-19 | Этап 3 AI завершён (бэкенд + 94 теста): analyze, apply-analysis, generate-reply, history, провайдеры, Zod, retry, таймаут, workspace isolation |
-| 2026-11-19 | Исправлены 15 критических дефектов; проверки на локальном PostgreSQL 16; Docker и реальный AI smoke — BLOCKED |
+| 2026-11-19 | Исправлены 15 критических дефектов; проверки на локальном PostgreSQL 16; Docker — BLOCKED                                                      |
+| 2026-11-19 | Подключён реальный AI: Yandex AI Studio, `aliceai-llm-flash`; `pnpm test:ai` и API-смоук PASS                                                  |
 
 ## 14. Исправление критических дефектов (2026-11-19)
 
 ### 14.1. Выполненные пункты и коммиты
 
-| №  | Изменение | Коммит | Проверка |
-| -- | --------- | ------ | -------- |
-| 1  | `Alert` берётся из `components/ui/alert` на Leads/Tasks/CRM | `821115d` | typecheck, lint |
-| 2  | Убран повторный `request.json()`; тело читается один раз через `readJsonBody` | `89c29a1` | typecheck, lint; API-смоук create |
-| 3  | `handleApiError` возвращает plain-envelope; роуты оборачивают один раз | `06302d4` | unit `handle-error.test.ts` (2) |
-| 4  | История AI фильтруется через `lead.workspaceId` | `6682924` | unit/integration обновлены |
-| 5  | `SHADOW_DATABASE_URL` синхронизирован в env/examples/Compose/docs; Docker init создаёт `bizpilot_shadow` | `f0620ed` | `prisma validate`, `prisma generate` |
-| 6  | Docker: context `.`, env wiring, seed в `migrate`, healthcheck `node -e fetch`, AI_PROVIDER из env | `b2ca785` | YAML распарсен; runtime Docker BLOCKED |
-| 7  | AI-assistant: вывод analysis, выбор заявки, кнопка «Применить» | `e4b6215` | UI-смоук analyze/apply |
-| 8  | Matcher `.*\..*` уже корректен; проверен редирект | `9b7ceb0` | `GET /dashboard` → 307 `/login`; API → 401 |
-| 9  | `requireRole(user, DELETE_ROLES)` во всех DELETE | `9a0fe66` | OPERATOR DELETE → 403 `FORBIDDEN` |
-| 10 | Rate limit логина (IP) и `/api/ai/*` (user); `assertSameOrigin` на мутациях | `984035d` | unit (5); POST без Origin → 403 |
-| 11 | GET-списки передают фильтры в сервисы | `448e6c2` | `?status=NEW` → только NEW |
-| 12 | Seed идемпотентен для контактов, заявок, задач | `0e6fed5` | два прогона: 1/3/10/20/15/2 без изменений |
-| 13 | `n8n_processed` остаётся SQL-миграцией, Prisma-модели нет | `63fa33e` | миграция применена; таблица существует |
-| 14 | apply-analysis и history не создают AI-провайдер | `fbecec0` | unit: apply/history без provider |
-| 15 | Исправлены «Мок/Оценка/поставь более низкую/не запускай»; `model` — реальная модель конфига | `a73c2c9` | unit: `model === "mock"` |
-| —  | Standalone-сборка включается `NEXT_OUTPUT_STANDALONE=true` (Docker), локальный build без symlink | `4fcc2a1` | `pnpm build` PASS |
-| —  | Дополнительно: history без page/limit, редирект после создания заявки, отступ контента под sidebar, raw SQL Dashboard | `8bda36b`, `dee2035`, `2d61178` | API + UI-смоук |
+| №   | Изменение                                                                                                             | Коммит                          | Проверка                                   |
+| --- | --------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------ |
+| 1   | `Alert` берётся из `components/ui/alert` на Leads/Tasks/CRM                                                           | `821115d`                       | typecheck, lint                            |
+| 2   | Убран повторный `request.json()`; тело читается один раз через `readJsonBody`                                         | `89c29a1`                       | typecheck, lint; API-смоук create          |
+| 3   | `handleApiError` возвращает plain-envelope; роуты оборачивают один раз                                                | `06302d4`                       | unit `handle-error.test.ts` (2)            |
+| 4   | История AI фильтруется через `lead.workspaceId`                                                                       | `6682924`                       | unit/integration обновлены                 |
+| 5   | `SHADOW_DATABASE_URL` синхронизирован в env/examples/Compose/docs; Docker init создаёт `bizpilot_shadow`              | `f0620ed`                       | `prisma validate`, `prisma generate`       |
+| 6   | Docker: context `.`, env wiring, seed в `migrate`, healthcheck `node -e fetch`, AI_PROVIDER из env                    | `b2ca785`                       | YAML распарсен; runtime Docker BLOCKED     |
+| 7   | AI-assistant: вывод analysis, выбор заявки, кнопка «Применить»                                                        | `e4b6215`                       | UI-смоук analyze/apply                     |
+| 8   | Matcher `.*\..*` уже корректен; проверен редирект                                                                     | `9b7ceb0`                       | `GET /dashboard` → 307 `/login`; API → 401 |
+| 9   | `requireRole(user, DELETE_ROLES)` во всех DELETE                                                                      | `9a0fe66`                       | OPERATOR DELETE → 403 `FORBIDDEN`          |
+| 10  | Rate limit логина (IP) и `/api/ai/*` (user); `assertSameOrigin` на мутациях                                           | `984035d`                       | unit (5); POST без Origin → 403            |
+| 11  | GET-списки передают фильтры в сервисы                                                                                 | `448e6c2`                       | `?status=NEW` → только NEW                 |
+| 12  | Seed идемпотентен для контактов, заявок, задач                                                                        | `0e6fed5`                       | два прогона: 1/3/10/20/15/2 без изменений  |
+| 13  | `n8n_processed` остаётся SQL-миграцией, Prisma-модели нет                                                             | `63fa33e`                       | миграция применена; таблица существует     |
+| 14  | apply-analysis и history не создают AI-провайдер                                                                      | `fbecec0`                       | unit: apply/history без provider           |
+| 15  | Исправлены «Мок/Оценка/поставь более низкую/не запускай»; `model` — реальная модель конфига                           | `a73c2c9`                       | unit: `model === "mock"`                   |
+| —   | Реальный AI: category/intent/priority в схеме и промпте, JSON-разбор draft_reply, `scripts/test-ai.ts`                | `54f0418`                       | `pnpm test:ai` PASS; API-смоук PASS        |
+| —   | Standalone-сборка включается `NEXT_OUTPUT_STANDALONE=true` (Docker), локальный build без symlink                      | `4fcc2a1`                       | `pnpm build` PASS                          |
+| —   | Дополнительно: history без page/limit, редирект после создания заявки, отступ контента под sidebar, raw SQL Dashboard | `8bda36b`, `dee2035`, `2d61178` | API + UI-смоук                             |
 
 ### 14.2. Фактические проверки
 
-| Проверка | Команда/метод | Результат |
-| -------- | ------------- | --------- |
-| Typecheck | `pnpm typecheck` | PASS (0 ошибок) |
-| Lint | `pnpm lint` | PASS (0 ошибок, 1 warning `postcss.config.mjs`) |
-| Unit | `pnpm test:unit` | PASS (9 файлов, 96 тестов) |
-| Integration | `pnpm test:integration` | PASS (1 файл, 8 тестов) |
-| Build | `pnpm build` | PASS, 29 маршрутов |
-| Migrations | `npx prisma migrate deploy` | PASS (2 миграции, локальный PostgreSQL 16) |
-| Seed x2 | `npx prisma db seed` + подсчёт | 1 workspace / 3 users / 10 contacts / 20 leads / 15 tasks / 2 integrations, без дублей |
-| Auth redirect | `GET /dashboard` без сессии | 307 → `/login?callbackUrl=%2Fdashboard` |
-| API auth | `GET /api/leads` без сессии | 401 JSON |
-| Origin guard | POST `/api/leads` без `Origin` | 403 |
-| UI-смоук | Playwright: login admin → создать заявку → AI-анализ → «Применить» → история | PASS (mock AI), история 200 |
-| OPERATOR delete | DELETE `/api/leads/:id` | 403 `FORBIDDEN` |
-| Docker Compose | `docker compose up -d --build` | BLOCKED: Docker отсутствует локально, доступа к VPS не предоставлено |
-| Реальный AI | `pnpm test:ai` | BLOCKED: в `.env` нет `AI_API_KEY`/`AI_BASE_URL`/`AI_MODEL`; UI-смоук выполнен на явно разрешённом mock |
+| Проверка               | Команда/метод                                                                | Результат                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Typecheck              | `pnpm typecheck`                                                             | PASS (0 ошибок)                                                                                                                              |
+| Lint                   | `pnpm lint`                                                                  | PASS (0 ошибок, 1 warning `postcss.config.mjs`)                                                                                              |
+| Unit                   | `pnpm test:unit`                                                             | PASS (9 файлов, 96 тестов)                                                                                                                   |
+| Integration            | `pnpm test:integration`                                                      | PASS (1 файл, 8 тестов)                                                                                                                      |
+| Build                  | `pnpm build`                                                                 | PASS, 29 маршрутов                                                                                                                           |
+| Migrations             | `npx prisma migrate deploy`                                                  | PASS (2 миграции, локальный PostgreSQL 16)                                                                                                   |
+| Seed x2                | `npx prisma db seed` + подсчёт                                               | 1 workspace / 3 users / 10 contacts / 20 leads / 15 tasks / 2 integrations, без дублей                                                       |
+| Auth redirect          | `GET /dashboard` без сессии                                                  | 307 → `/login?callbackUrl=%2Fdashboard`                                                                                                      |
+| API auth               | `GET /api/leads` без сессии                                                  | 401 JSON                                                                                                                                     |
+| Origin guard           | POST `/api/leads` без `Origin`                                               | 403                                                                                                                                          |
+| UI-смоук               | Playwright: login admin → создать заявку → AI-анализ → «Применить» → история | PASS (mock AI), история 200                                                                                                                  |
+| OPERATOR delete        | DELETE `/api/leads/:id`                                                      | 403 `FORBIDDEN`                                                                                                                              |
+| Docker Compose         | `docker compose up -d --build`                                               | BLOCKED: Docker отсутствует локально, доступа к VPS не предоставлено                                                                         |
+| Реальный AI            | `pnpm test:ai`                                                               | PASS: Yandex AI Studio, `gpt://b1g01o2ps9gil9pad0nc/aliceai-llm-flash/latest`; HTTP 200, Zod PASS, timeout AbortError, ошибка провайдера 401 |
+| API-смоук реального AI | login → create → analyze → apply → history → delete                          | PASS: category/intent/priority/summary/leadScore сохранены в заявке, history содержит реальную модель                                        |
 
 ### 14.3. Блокеры
 
 1. **Docker-приёмка** — на локальной Windows Docker не установлен (установка запрещена условиями), отдельный VPS недоступен.
-2. **Реальный AI smoke** — не настроены credentials провайдера. Mock использован только для проверки UI-сценария и явно помечен; как доказательство реального LLM не заявляется.
-3. **Telegram/n8n E2E** — этап 4 не начат по решению пользователя.
+2. **Telegram/n8n E2E** — этап 4 не начат по решению пользователя.
+
+### 14.4. Реальный AI-провайдер (2026-11-19)
+
+- Провайдер: OpenAI-compatible, Yandex AI Studio (`https://ai.api.cloud.yandex.net/v1`).
+- Модель: `gpt://b1g01o2ps9gil9pad0nc/aliceai-llm-flash/latest` (Alice AI LLM Flash).
+- `pnpm test:ai`: analyze — HTTP 200, Zod PASS, 7.1–11.5 с; `category=business_automation`, `intent=request`, `priority=HIGH`, `leadScore=75`; generate-reply — Zod PASS, 1.7–2.1 с, чистый текст без markdown.
+- Timeout: AbortError за 3 мс при `timeoutMs=1`.
+- Ошибка провайдера: `AIProviderError`, HTTP 401 при неверном ключе.
+- API-смоук: analyze 200 (9.85 с), apply 200, заявка содержит `category=business_automation`, `intent=request`, `priority=MEDIUM`, `leadScore=70`, summary; history 200 и реальная модель; cleanup 200.
+- Ключи в репозиторий не попадают; `.env` в `.gitignore`. Ключ, опубликованный в чате, следует перевыпустить.
 
 Следующий шаг: предоставить Docker/VPS и AI credentials для закрытия пунктов приёмки; этап 4 без отдельного решения не начинать.
