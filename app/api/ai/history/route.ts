@@ -18,8 +18,8 @@ export async function GET(request: NextRequest): Promise<Response> {
 
     const searchParams = request.nextUrl.searchParams;
     const parsed = HistoryQuerySchema.safeParse({
-      page: searchParams.get("page"),
-      limit: searchParams.get("limit"),
+      page: searchParams.get("page") ?? undefined,
+      limit: searchParams.get("limit") ?? undefined,
       leadId: searchParams.get("leadId") ?? undefined,
     });
 
