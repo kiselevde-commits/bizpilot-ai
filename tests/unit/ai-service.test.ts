@@ -15,6 +15,10 @@ vi.mock("@/lib/database/prisma", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    automationEvent: {
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -50,6 +54,7 @@ beforeEach(() => {
   (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
     id: mockLeadId,
   });
+  (prisma.automationEvent.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -73,8 +78,7 @@ describe("AIService.analyze", () => {
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
 
     expect(prisma.aIAnalysis.create).toHaveBeenCalledTimes(1);
-    const createCall = (prisma.aIAnalysis.create as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0];
+    const createCall = (prisma.aIAnalysis.create as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(createCall.data.provider).toBe("mock");
     expect(createCall.data.status).toBe("SUCCESS");
     expect(createCall.data.promptHash).toBeDefined();
@@ -197,13 +201,66 @@ describe("AIService.applyAnalysis", () => {
     expect(logCall.workspaceId).toBe("workspace-1");
   });
 
+  it("обновляет payload ожидающего automation event после apply", async () => {
+    const service = makeService();
+    (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(mockLead);
+
+    const mockUpdated = {
+      id: mockLeadId,
+      title: "Заявка",
+      status: "NEW" as const,
+      priority: "HIGH" as const,
+      summary: "Резюме по заявке",
+      leadScore: 85,
+      category: "crm_integration" as const,
+      intent: "request" as const,
+      customerType: "b2b" as const,
+      updatedAt: new Date(),
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma mock type is complex
+    (prisma.$transaction as any).mockImplementation(async (callback: any) =>
+      callback({
+        lead: { update: vi.fn().mockResolvedValue(mockUpdated) },
+        activityLog: { create: vi.fn().mockResolvedValue({}) },
+      }),
+    );
+
+    (prisma.automationEvent.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: "event-1",
+      payload: { title: "Заявка", url: "https://crm.example.com/leads/lead-1" },
+    });
+    (prisma.automationEvent.updateMany as ReturnType<typeof vi.fn>).mockResolvedValue({ count: 1 });
+
+    await service.applyAnalysis(mockLeadId, applyInput, mockUser);
+
+    expect(prisma.automationEvent.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "event-1",
+          lockedAt: null,
+          status: { in: ["PENDING", "RETRYING"] },
+        }),
+        data: expect.objectContaining({
+          payload: expect.objectContaining({
+            title: "Заявка",
+            url: "https://crm.example.com/leads/lead-1",
+            summary: "Резюме по заявке",
+            category: "crm_integration",
+            priority: "HIGH",
+          }),
+        }),
+      }),
+    );
+  });
+
   it("отклоняет несуществующий лид", async () => {
     const service = makeService();
     (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
-    await expect(
-      service.applyAnalysis("missing-lead", applyInput, mockUser),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
+    await expect(service.applyAnalysis("missing-lead", applyInput, mockUser)).rejects.toMatchObject(
+      { code: "NOT_FOUND" },
+    );
   });
 
   it("отклоняет невалидную категорию (остаётся значение лида)", async () => {
@@ -225,10 +282,14 @@ describe("AIService.applyAnalysis", () => {
       return callback(tx);
     });
 
-    const result = await service.applyAnalysis(mockLeadId, {
-      ...applyInput,
-      category: "invalid_category" as const,
-    }, mockUser);
+    const result = await service.applyAnalysis(
+      mockLeadId,
+      {
+        ...applyInput,
+        category: "invalid_category" as const,
+      },
+      mockUser,
+    );
 
     expect(result.lead.category).toBe("crm_integration" as const); // старое значение сохранено
   });
@@ -250,10 +311,14 @@ describe("AIService.applyAnalysis", () => {
     });
 
     // leadScore = 150 должен быть отклонён, остаётся старый (null)
-    const result = await service.applyAnalysis(mockLeadId, {
-      ...applyInput,
-      leadScore: 150,
-    }, mockUser);
+    const result = await service.applyAnalysis(
+      mockLeadId,
+      {
+        ...applyInput,
+        leadScore: 150,
+      },
+      mockUser,
+    );
 
     expect(result.lead.leadScore).toBeNull();
   });
@@ -274,14 +339,18 @@ describe("AIService.applyAnalysis", () => {
       return callback(tx);
     });
 
-    const result = await service.applyAnalysis(mockLeadId, {
-      summary: null,
-      leadScore: null,
-      category: null,
-      intent: null,
-      customerType: null,
-      priority: "HIGH" as const,
-    } as never, mockUser);
+    const result = await service.applyAnalysis(
+      mockLeadId,
+      {
+        summary: null,
+        leadScore: null,
+        category: null,
+        intent: null,
+        customerType: null,
+        priority: "HIGH" as const,
+      } as never,
+      mockUser,
+    );
 
     expect(result.lead.priority).toBe("HIGH" as const);
     // Переданный summary: null должен сбросить summary
@@ -325,8 +394,8 @@ describe("AIService.getHistory", () => {
       totalPages: 1,
     });
 
-    const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0].where;
+    const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>).mock.calls[0]![0]
+      .where;
     expect(whereArg.lead.workspaceId).toBe("workspace-1");
   });
 
@@ -342,8 +411,8 @@ describe("AIService.getHistory", () => {
       leadId: mockLeadId,
     });
 
-    const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0].where;
+    const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>).mock.calls[0]![0]
+      .where;
     expect(whereArg.lead.id).toBe(mockLeadId);
     expect(whereArg.lead.workspaceId).toBe("workspace-1");
   });
@@ -356,8 +425,7 @@ describe("AIService.getHistory", () => {
 
     await service.getHistory(mockUser, { page: 0, limit: 999 });
 
-    const call = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0];
+    const call = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(call.skip).toBe(0); // page 0 -> max(1, 0) = 1 -> skip 0
     expect(call.take).toBe(100); // limit clamped to 100
   });
@@ -370,8 +438,8 @@ describe("AIService.getHistory", () => {
 
     await service.getHistory(mockUser, { page: 1, limit: 20 });
 
-    const orderBy = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0].orderBy;
+    const orderBy = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>).mock.calls[0]![0]
+      .orderBy;
     expect(orderBy).toEqual({ createdAt: "desc" });
   });
 });

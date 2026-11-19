@@ -1,0 +1,754 @@
+{
+  "name": "lead_created_notification (DRAFT)",
+  "nodes": [
+    {
+      "id": "draft-read-me",
+      "name": "DRAFT README",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-60, -460],
+      "parameters": {
+        "content": "DRAFT for import — runtime verification is BLOCKED until n8n and Telegram are configured.\n\n1. Create Postgres credential 'BizPilot n8n dedupe' (host postgres, db bizpilot, user n8n_dedupe, password from N8N_DEDUPE_DB_PASSWORD).\n2. Create Telegram credential 'BizPilot Telegram' with the bot token.\n3. Set n8n env: N8N_WEBHOOK_SECRET, N8N_CALLBACK_SECRET, BIZPILOT_BASE_URL, TELEGRAM_CHAT_ID.\n4. Replace REPLACE_WITH_* credential ids if n8n does not bind them on import.\n5. Import, activate, then verify with docs/N8N.md smoke steps.\n\nSee docs/N8N.md. Do not put secrets in this workflow JSON.",
+        "height": 300,
+        "width": 620
+      }
+    },
+    {
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 0],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-created",
+        "responseMode": "responseNode",
+        "authentication": "none",
+        "options": {
+          "rawBody": true
+        }
+      }
+    },
+    {
+      "id": "verify-signature",
+      "name": "Verify signature",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 0],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const crypto = require('crypto');\n\nconst item = items[0]?.json ?? {};\nconst headers = item.headers ?? {};\nconst rawBody = item.body;\n\nif (typeof rawBody !== 'string') {\n  throw new Error('RAW_BODY_REQUIRED');\n}\n\nconst header = (name) => {\n  const key = Object.keys(headers).find((key) => key.toLowerCase() === name);\n  return key ? String(headers[key] ?? '') : '';\n};\n\nconst signature = header('x-bizpilot-signature').trim().toLowerCase();\nconst timestamp = header('x-bizpilot-timestamp').trim();\nconst secret = $env.N8N_WEBHOOK_SECRET;\n\nif (!secret) throw new Error('N8N_WEBHOOK_SECRET is not configured');\nif (!/^[0-9]{1,12}$/.test(timestamp)) throw new Error('INVALID_TIMESTAMP');\n\nconst now = Math.floor(Date.now() / 1000);\nif (Math.abs(now - Number(timestamp)) > 300) {\n  throw new Error('STALE_TIMESTAMP');\n}\n\nconst expected = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + rawBody)\n  .digest('hex');\n\nconst expectedBuffer = Buffer.from(expected, 'utf8');\nconst signatureBuffer = Buffer.from(signature, 'utf8');\n\nif (\n  expectedBuffer.length !== signatureBuffer.length ||\n  !crypto.timingSafeEqual(expectedBuffer, signatureBuffer)\n) {\n  throw new Error('INVALID_SIGNATURE');\n}\n\nlet payload;\ntry {\n  payload = JSON.parse(rawBody);\n} catch {\n  throw new Error('INVALID_JSON');\n}\n\nif (!payload || typeof payload.idempotencyKey !== 'string' || !payload.idempotencyKey) {\n  throw new Error('INVALID_PAYLOAD');\n}\n\nif (payload.eventType !== 'lead.created') {\n  throw new Error('UNSUPPORTED_EVENT');\n}\n\nconst data = payload.data && typeof payload.data === 'object' ? payload.data : {};\n\nreturn [{\n  json: {\n    idempotencyKey: payload.idempotencyKey,\n    payload: { ...payload, data },\n    rawBody,\n  },\n}];"
+      }
+    },
+    {
+      "id": "claim-idempotency",
+      "name": "Claim idempotency",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [480, 0],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO n8n_processed (idempotency_key, status, claimed_at)\nVALUES ($1, 'CLAIMED', now())\nON CONFLICT (idempotency_key) DO NOTHING\nRETURNING idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ $json.idempotencyKey }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "BizPilot n8n dedupe"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "if-claimed",
+      "name": "IF claimed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [700, 0],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-claimed",
+              "leftValue": "={{ $json.idempotency_key }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "respond-accepted",
+      "name": "Respond accepted",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [920, -160],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: true, idempotencyKey: $('Verify signature').first().json.idempotencyKey } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "send-telegram",
+      "name": "Send Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [920, 20],
+      "parameters": {
+        "chatId": "={{ $env.TELEGRAM_CHAT_ID }}",
+        "text": "=🔔 Новая заявка\n\nНазвание: {{ $('Verify signature').first().json.payload.data.title }}\nПриоритет: {{ $('Verify signature').first().json.payload.data.priority }}\nКатегория: {{ $('Verify signature').first().json.payload.data.category || '—' }}\nРезюме: {{ $('Verify signature').first().json.payload.data.summary || '—' }}\n\nОткрыть: {{ $('Verify signature').first().json.payload.data.url || '—' }}",
+        "additionalFields": {}
+      },
+      "credentials": {
+        "telegramApi": {
+          "id": "REPLACE_WITH_TELEGRAM_CREDENTIAL_ID",
+          "name": "BizPilot Telegram"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "mark-sent",
+      "name": "Mark SENT",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1140, 20],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE n8n_processed\nSET status = 'SENT', processed_at = now(), external_event_id = $2, last_error = NULL\nWHERE idempotency_key = $1\nRETURNING idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ $('Verify signature').first().json.idempotencyKey }},{{ $execution.id }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "BizPilot n8n dedupe"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "prepare-delivered-callback",
+      "name": "Prepare delivered callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1360, 20],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{\n  json: {\n    idempotencyKey: $('Verify signature').first().json.idempotencyKey,\n    status: 'delivered',\n    error: null,\n  },\n}];"
+      }
+    },
+    {
+      "id": "post-callback",
+      "name": "Post callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 20],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const crypto = require('crypto');\n\nconst input = $input.first()?.json ?? {};\nconst idempotencyKey = String(input.idempotencyKey || '');\nconst status = input.status === 'failed' ? 'failed' : 'delivered';\nconst error =\n  status === 'failed'\n    ? String(input.error || 'Telegram delivery failed').slice(0, 500)\n    : null;\n\nif (!idempotencyKey) {\n  throw new Error('MISSING_IDEMPOTENCY_KEY');\n}\n\nconst secret = $env.N8N_CALLBACK_SECRET;\nconst baseUrl = String($env.BIZPILOT_BASE_URL || '').replace(/[/]+$/, '');\n\nif (!secret) throw new Error('N8N_CALLBACK_SECRET is not configured');\nif (!baseUrl) throw new Error('BIZPILOT_BASE_URL is not configured');\n\nconst body = JSON.stringify({\n  idempotencyKey,\n  status,\n  ...(String($execution.id || '')\n    ? { externalEventId: String($execution.id || '') }\n    : {}),\n  ...(error ? { error } : {}),\n});\n\nconst timestamp = String(Math.floor(Date.now() / 1000));\nconst signature = crypto\n  .createHmac('sha256', secret)\n  .update(timestamp + '.' + body)\n  .digest('hex');\n\nawait this.helpers.httpRequest({\n  method: 'POST',\n  url: baseUrl + '/api/webhooks/n8n',\n  headers: {\n    'content-type': 'application/json',\n    'x-n8n-signature': signature,\n    'x-n8n-timestamp': timestamp,\n  },\n  body,\n});\n\nreturn [{ json: { callback: status, idempotencyKey } }];"
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "id": "lookup-dedupe-state",
+      "name": "Lookup dedupe state",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [920, 240],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT idempotency_key, status, claimed_at, last_error\nFROM n8n_processed\nWHERE idempotency_key = $1\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ $('Verify signature').first().json.idempotencyKey }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "BizPilot n8n dedupe"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "decide-duplicate-action",
+      "name": "Decide duplicate action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 240],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const row = $input.first()?.json ?? {};\nconst status = String(row.status || '');\nconst claimedAt = row.claimed_at ? new Date(row.claimed_at).getTime() : 0;\n\nlet action = 'unknown';\n\nif (status === 'SENT') {\n  action = 'already_sent';\n} else if (status === 'FAILED') {\n  action = 'failed';\n} else if (status === 'CLAIMED') {\n  action =\n    Date.now() - claimedAt > 15 * 60 * 1000\n      ? 'manual_reconciliation'\n      : 'in_flight';\n}\n\nreturn [{\n  json: {\n    action,\n    status,\n    claimedAt: row.claimed_at ?? null,\n    lastError: row.last_error ?? null,\n  },\n}];"
+      }
+    },
+    {
+      "id": "switch-duplicate-action",
+      "name": "Switch duplicate action",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1360, 240],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "already-sent",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "already_sent",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "already_sent"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "failed",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "failed",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "failed"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "manual-reconciliation",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "manual_reconciliation",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "manual_reconciliation"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "in-flight",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "in_flight",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "in_flight"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "unknown",
+                    "leftValue": "={{ $json.action }}",
+                    "rightValue": "unknown",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "unknown"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "respond-duplicate",
+      "name": "Respond duplicate",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1600, 120],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { duplicate: true } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "respond-manual-reconciliation",
+      "name": "Respond manual reconciliation",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1600, 360],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: false, action: 'manual_reconciliation' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "respond-conflict",
+      "name": "Respond conflict",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2020, 560],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: false, action: 'conflict' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "respond-unknown",
+      "name": "Respond unknown",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1600, 680],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { accepted: false, action: 'unknown' } }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "prepare-manual-callback",
+      "name": "Prepare manual callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 480],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "return [{\n  json: {\n    idempotencyKey: $('Verify signature').first().json.idempotencyKey,\n    status: 'failed',\n    error:\n      'CLAIMED older than 15 minutes: manual reconciliation required before resending',\n  },\n}];"
+      }
+    },
+    {
+      "id": "reclaim-failed",
+      "name": "Reclaim failed",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1600, 600],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE n8n_processed\nSET status = 'CLAIMED', claimed_at = now(), processed_at = NULL, last_error = NULL\nWHERE idempotency_key = $1 AND status = 'FAILED'\nRETURNING idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ $('Verify signature').first().json.idempotencyKey }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "BizPilot n8n dedupe"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "if-reclaimed",
+      "name": "IF reclaimed",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1820, 600],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if-reclaimed",
+              "leftValue": "={{ $json.idempotency_key }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "prepare-failure",
+      "name": "Prepare failure",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1140, 120],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const item = $input.first()?.json ?? {};\n\nlet message = 'Telegram delivery failed';\nif (item.error) {\n  message =\n    typeof item.error === 'string'\n      ? item.error\n      : item.error.message || JSON.stringify(item.error);\n}\n\nreturn [{\n  json: {\n    idempotencyKey: $('Verify signature').first().json.idempotencyKey,\n    error: String(message).slice(0, 500),\n  },\n}];"
+      }
+    },
+    {
+      "id": "record-failure",
+      "name": "Record failure",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [1360, 120],
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE n8n_processed\nSET status = 'FAILED', processed_at = now(), last_error = 'Telegram delivery failed'\nWHERE idempotency_key = $1\nRETURNING idempotency_key;",
+        "options": {
+          "queryReplacement": "={{ $json.idempotencyKey }}"
+        }
+      },
+      "credentials": {
+        "postgres": {
+          "id": "REPLACE_WITH_POSTGRES_CREDENTIAL_ID",
+          "name": "BizPilot n8n dedupe"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "prepare-failed-callback",
+      "name": "Prepare failed callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1580, 120],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const failure = $('Prepare failure').first().json;\n\nreturn [{\n  json: {\n    idempotencyKey: failure.idempotencyKey,\n    status: 'failed',\n    error: failure.error,\n  },\n}];"
+      }
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verify signature",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify signature": {
+      "main": [
+        [
+          {
+            "node": "Claim idempotency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claim idempotency": {
+      "main": [
+        [
+          {
+            "node": "IF claimed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF claimed": {
+      "main": [
+        [
+          {
+            "node": "Respond accepted",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Lookup dedupe state",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Telegram": {
+      "main": [
+        [
+          {
+            "node": "Mark SENT",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Prepare failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Mark SENT": {
+      "main": [
+        [
+          {
+            "node": "Prepare delivered callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare delivered callback": {
+      "main": [
+        [
+          {
+            "node": "Post callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lookup dedupe state": {
+      "main": [
+        [
+          {
+            "node": "Decide duplicate action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decide duplicate action": {
+      "main": [
+        [
+          {
+            "node": "Switch duplicate action",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch duplicate action": {
+      "main": [
+        [
+          {
+            "node": "Respond duplicate",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare delivered callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Reclaim failed",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond manual reconciliation",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare manual callback",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond duplicate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond unknown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare manual callback": {
+      "main": [
+        [
+          {
+            "node": "Post callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Reclaim failed": {
+      "main": [
+        [
+          {
+            "node": "IF reclaimed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF reclaimed": {
+      "main": [
+        [
+          {
+            "node": "Respond accepted",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Send Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond conflict",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare failure": {
+      "main": [
+        [
+          {
+            "node": "Record failure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Record failure": {
+      "main": [
+        [
+          {
+            "node": "Prepare failed callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare failed callback": {
+      "main": [
+        [
+          {
+            "node": "Post callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": false,
+    "saveDataErrorExecution": "none",
+    "saveDataSuccessExecution": "none"
+  },
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "draft": true,
+    "description": "DRAFT import. Real n8n/Telegram runtime is not verified. See docs/N8N.md."
+  }
+}

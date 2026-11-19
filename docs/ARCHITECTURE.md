@@ -1,8 +1,8 @@
 # Архитектура BizPilot AI
 
-**Версия документа:** 1.0 (этап 0)  
+**Версия документа:** 1.1 (этап 4)  
 **Дата:** 2026-11-19  
-**Статус:** согласовано для этапа 1; ожидает подтверждения пользователя  
+**Статус:** этапы 1–4 реализованы в коде и тестах; реальный n8n/Telegram runtime — BLOCKED (нет credentials и Docker)  
 **Источник требований:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24.
 
 ## 1. Назначение и границы MVP
@@ -466,6 +466,13 @@ CREATE INDEX n8n_processed_status_claimed_at_idx
 
 Проверено 2026-11-19: `prisma/migrations/20261119000100_n8n_processed/migration.sql` применяется через `prisma migrate deploy`; Prisma-модели для этой таблицы нет (сохранён подход ТЗ 24.12).
 
+Этап 4 добавил:
+
+- `docker/n8n/init-db.sql` — идемпотентное создание ролей `n8n_app` (владелец отдельной БД `n8n`) и `n8n_dedupe` (`NOSUPERUSER NOCREATEDB NOCREATEROLE`);
+- Compose-сервис `n8n-db-init` под профилем `automation`, который запускается после `migrate`;
+- миграцию `20261119000200_n8n_processed_grants`: `REVOKE ALL` + `GRANT SELECT, INSERT, UPDATE` для `n8n_dedupe`, если роль существует;
+- отзыв `CONNECT` на CRM-БД у `PUBLIC`, чтобы `n8n_app` не имел доступа к бизнес-таблицам.
+
 ### 7.12. Правила удаления
 
 | Сущность   | Правило                                                                                                                |
@@ -700,19 +707,22 @@ ENV: `AI_BASE_URL` (default `https://openrouter.ai/api/v1`), `AI_API_KEY`, `AI_M
 
 - `AutomationEvent` создаётся в транзакции с Lead.
 - `idempotencyKey = lead.created:<leadId>`; при retry не меняется.
-- Dispatcher: max 10 событий, lease 5 минут, `FOR UPDATE SKIP LOCKED`.
+- Payload: title, priority, category, summary, public URL. Текст заявки и контактные данные не включаются.
+- Dispatcher: max 10 событий, lease 5 минут, `FOR UPDATE SKIP LOCKED`, `lockedAt` + `lockToken`.
+- Claim SQL сравнивает Prisma `timestamp(3)`-колонки через `AT TIME ZONE 'UTC'`, иначе lease зависит от timezone PostgreSQL-сессии.
 - `attempts` увеличивается только при фактическом HTTP-вызове.
 - События старше 24 часов → FAILED без отправки.
 - `SENT` = n8n принял; `DELIVERED` = Telegram подтверждён callback.
 - Lazy invocation: после создания Lead, Dashboard, Settings/Automation, automation API. Eventual-доставка документируется.
+- In-memory lock отсутствует; конкурентные dispatcher-вызовы безопасны.
 
 ### 11.2. Retry
 
-- 1 первоначальная + максимум 3 автоматические попытки.
+- 1 первоначальная + максимум 3 автоматические попытки (всего 4 HTTP-вызова).
 - Задержки: 1 мин, 5 мин, 30 мин.
 - Максимальный возраст 24 часа с `createdAt`.
-- Постоянные 4xx (кроме 429) → FAILED. 429 — `Retry-After`, в пределах лимита попыток и 24 часов.
-- Ручной retry ADMIN/MANAGER только для FAILED и до 24 часов; тот же event/idempotencyKey.
+- Постоянные 4xx (кроме 429) → FAILED. 429 — `max(расписание, Retry-After)`, в пределах лимита попыток и 24 часов.
+- Ручной retry ADMIN/MANAGER только для FAILED и до 24 часов; тот же event/idempotencyKey; `attempts` сбрасывается в 0, статус RETRYING.
 - После исчерпания — FAILED, причина в `lastError`.
 
 ### 11.3. HMAC исходящий
@@ -723,31 +733,45 @@ ENV: `AI_BASE_URL` (default `https://openrouter.ai/api/v1`), `AI_API_KEY`, `AI_M
 
 ### 11.4. HMAC callback
 
-n8n → BizPilot: `HMAC-SHA256(N8N_CALLBACK_SECRET, timestamp + "." + rawBody)`, headers `X-N8N-Signature`, `X-N8N-Timestamp`. `timestamp` — Unix epoch seconds, подпись — lowercase hex. Секрет должен отличаться от `N8N_WEBHOOK_SECRET`. BizPilot проверяет constant-time, окно ±5 минут, Zod payload, идемпотентность по `idempotencyKey`, игнорирует присланный `workspaceId`.
+n8n → BizPilot: `HMAC-SHA256(N8N_CALLBACK_SECRET, timestamp + "." + rawBody)`, headers `X-N8N-Signature`, `X-N8N-Timestamp`. `timestamp` — Unix epoch seconds, подпись — lowercase hex. Секрет должен отличаться от `N8N_WEBHOOK_SECRET`; совпадение отклоняется как misconfiguration. BizPilot читает raw bytes до JSON.parse, проверяет constant-time, окно ±5 минут, Zod payload, идемпотентность по `idempotencyKey`, игнорирует присланный `workspaceId`. Переход DELIVERED → FAILED запрещён; повтор с тем же статусом возвращает `duplicate=true`.
 
 ### 11.5. n8n workflow `lead_created_notification`
 
+Файл: `n8n/workflows/lead_created_notification.json`.
+
+**Статус:** DRAFT для импорта. Реальный импорт и Telegram runtime не проверены (BLOCKED: нет n8n/Telegram credentials и Docker). Это явно указано в имени workflow, sticky note и `docs/N8N.md`; файл не выдаётся за экспорт работающего workflow.
+
 Порядок nodes:
 
-1. Webhook (raw body, headers).
+1. Webhook (raw body, headers, response node).
 2. Code: HMAC + timestamp; invalid → stop до side effect.
 3. Postgres: `INSERT INTO n8n_processed (idempotency_key, status) VALUES ($1, 'CLAIMED') ON CONFLICT (idempotency_key) DO NOTHING RETURNING idempotency_key`.
-4. IF: нет строки → duplicate, Telegram не отправлять; вернуть duplicate/accepted.
-5. Telegram: сообщение (title, priority, category, summary, link).
-6. Postgres: `status='SENT'`, `processed_at=now()`, `external_event_id`; при ошибке `FAILED` + безопасный `last_error`.
-7. HTTP Request callback в BizPilot с HMAC.
+4. Ветка дубликата: `SENT` → повторный callback без Telegram; `CLAIMED < 15 мин` → duplicate; `CLAIMED ≥ 15 мин` → manual reconciliation; `FAILED` → атомарный reclaim `UPDATE ... WHERE status='FAILED'` и повторная отправка.
+5. Telegram: сообщение (title, priority, category, summary, link), plain text.
+6. Postgres: `status='SENT'`, `processed_at=now()`, `external_event_id`; при ошибке Telegram `FAILED` + безопасный `last_error`.
+7. Code: подписанный callback в BizPilot; `$env` для секретов, raw body string для подписи.
+8. Error output Telegram → FAILED + callback failed.
 
-Граница гарантии: предотвращаются конкурентные повторы, но нет математического exactly-once для Telegram API. Падение после Telegram до записи SENT оставляет CLAIMED; старше 15 минут — ручная сверка, без автоотправки. At-most-once bias документируется в `docs/N8N.md` и `docs/SECURITY.md`.
+Execution data с payload не сохраняется (`saveDataSuccessExecution=none`, `saveDataErrorExecution=none`), чтобы не накапливать персональные данные. Граница гарантии: предотвращаются конкурентные повторы, но нет математического exactly-once для Telegram API. Падение после Telegram до записи SENT оставляет CLAIMED; старше 15 минут — ручная сверка, без автоотправки. At-most-once bias документируется в `docs/N8N.md` и `docs/SECURITY.md`.
 
 ### 11.6. Telegram
 
-ENV: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (для n8n/локального compose; в приложении не используются для отправки). Сообщение: название, приоритет, категория, краткое резюме, ссылка при наличии `APP_BASE_URL`. Только уведомления; приём сообщений отложен.
+ENV: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (для n8n/локального compose; в приложении не используются для отправки). Токен хранится в n8n Credential; workflow использует credential и `TELEGRAM_CHAT_ID`. Сообщение: название, приоритет, категория, краткое резюме, ссылка при наличии `APP_BASE_URL`. Только уведомления; приём сообщений отложен.
 
 ### 11.7. Интеграции и Settings
 
-Seed: `n8n` и `telegram` со статусом NOT_CONFIGURED. При успешном вызове n8n — ACTIVE + `lastCheckedAt`; при ошибке — ERROR. При callback DELIVERED — telegram ACTIVE; FAILED — ERROR. ACTIVE не выставляется только из-за наличия ENV.
+Seed: `n8n` и `telegram` со статусом NOT_CONFIGURED. При успешном вызове n8n — ACTIVE + `lastCheckedAt`; при ошибке — ERROR. При callback DELIVERED — telegram ACTIVE; FAILED — ERROR. ACTIVE не выставляется только из-за наличия ENV; если ENV снят, status API показывает NOT_CONFIGURED независимо от исторического значения в БД.
 
-Settings: read-only profile, automation status, integrations status, logout. Формы изменения секретов/ENV не создаются. OPERATOR видит только profile/logout; automation/integrations sections доступны ADMIN/MANAGER.
+Settings: read-only profile, automation status, integrations status, журнал событий, кнопка ручного retry, logout. Формы изменения секретов/ENV не создаются. OPERATOR видит только profile/logout; automation/integrations sections доступны ADMIN/MANAGER.
+
+### 11.8. Реализованные API и UI этапа 4
+
+- `GET /api/automation/events` — ADMIN/MANAGER, пагинация, lazy dispatcher.
+- `GET /api/automation/status` — counts, конфигурация n8n/Telegram, stale CLAIMED, политика retry.
+- `POST /api/automation/events/:id/retry` — ADMIN/MANAGER, Origin check, только FAILED, <24h, тот же key; после смены статуса dispatcher пытается отправить событие.
+- `POST /api/webhooks/n8n` — HMAC, raw body 64 KB, timestamp ±5 минут, Zod, идемпотентность.
+- `/settings` — read-only профиль, n8n/Telegram, политика доставки, журнал с ошибками и временем последней попытки, retry для FAILED.
+- Dispatcher вызывается на Dashboard, `/settings`, automation API и после создания Lead.
 
 ## 12. Frontend
 
@@ -865,16 +889,18 @@ Settings: read-only profile, automation status, integrations status, logout. Ф�
 
 Profile `automation`:
 
-- `n8n` — `n8nio/n8n:1.123.98`, порт 5678, volume, отдельная БД `n8n` и роль `n8n_app`, credential `n8n_dedupe` для `bizpilot.n8n_processed`.
+- `n8n-db-init` — `postgres:16.16-alpine`, запускается после `migrate`; идемпотентно вызывает `docker/n8n/init-db.sql`, создаёт роли `n8n_app` и `n8n_dedupe`, отзывает доступ `n8n_app` к CRM-БД.
+- `n8n` — `n8nio/n8n:1.123.98`, порт только `127.0.0.1:5678`, volume `n8n_data`, отдельная БД `n8n`, Postgres credential `n8n_dedupe` для `bizpilot.n8n_processed`, Telegram credential.
+- `n8n` зависит от `n8n-db-init` (completed), `postgres` (healthy), `app` (started).
 
 Команды:
 
 ```bash
 docker compose up -d --build
-docker compose --profile automation up -d
+docker compose --env-file .env.docker --profile automation up -d
 ```
 
-CRM работает при выключенном n8n: события остаются PENDING, интеграция NOT_CONFIGURED/ERROR.
+Базовый стек не требует n8n-секретов; они обязательны только для профиля `automation`. CRM работает при выключенном n8n: события остаются PENDING/RETRYING, интеграция NOT_CONFIGURED/ERROR.
 
 ### 14.2. Dockerfile
 
@@ -899,12 +925,16 @@ CRM работает при выключенном n8n: события оста�
 - `AI_PROVIDER=openai-compatible` (в тестах `mock` + `ALLOW_MOCK_AI=true`)
 - `N8N_WEBHOOK_URL`
 - `N8N_WEBHOOK_SECRET`
-- `N8N_CALLBACK_SECRET`
+- `N8N_CALLBACK_SECRET` (обязан отличаться от webhook secret)
+- `N8N_TIMEOUT_MS=10000`
 - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` (для n8n/compose)
 - `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
 - `N8N_ENCRYPTION_KEY`, `N8N_BASIC_AUTH_USER`, `N8N_BASIC_AUTH_PASSWORD`
 - `N8N_DB_NAME`, `N8N_DB_USER`, `N8N_DB_PASSWORD`
 - `N8N_DEDUPE_DB_USER`, `N8N_DEDUPE_DB_PASSWORD`
+- Только для профиля automation: `N8N_PUBLIC_URL`, `N8N_HOST`, `N8N_TIMEZONE`, `BIZPILOT_BASE_URL`, `NODE_FUNCTION_ALLOW_BUILTIN=crypto`
+
+`BIZPILOT_BASE_URL` — адрес приложения **из контейнера n8n** (`http://app:3000` в Compose или публичный HTTPS). `N8N_WEBHOOK_URL` — адрес webhook n8n **из контейнера приложения** (`http://n8n:5678/webhook/lead-created`).
 
 Секреты генерируются случайно (≥32 байта) и не коммитятся. `.env.example` содержит только имена и пустые заглушки.
 
@@ -930,8 +960,11 @@ pnpm prisma db seed
 - Idempotency key format/stability.
 - normalize email/phone (включая 7/8 → +7, пустые).
 - Sort allow-list и pagination parsing.
-- HMAC constant-time/verify, timestamp window.
+- HMAC constant-time/verify, timestamp window, raw body integrity.
 - Body limit helper.
+- Automation retry schedule, 24h limit, 429/4xx/5xx classification.
+- Callback transition/idempotency, role checks, lease expiry helpers.
+- n8n config/secret separation, Retry-After parsing.
 
 ### 15.2. Integration (PostgreSQL)
 
@@ -939,9 +972,9 @@ pnpm prisma db seed
 
 1. CRUD + Prisma: create/read/update/delete, Workspace isolation, delete rules, duplicate contacts, ActivityLog.
 2. AI adapter: valid response, invalid JSON (retry), timeout (AbortController), provider error, token/duration history, no raw prompt storage.
-3. n8n webhook: valid HMAC, invalid signature, stale timestamp, replay, callback idempotency, retry schedule, 4xx/5xx/429, n8n_processed atomic dedupe.
+3. n8n/outbox: valid HMAC, invalid signature, stale timestamp, replay, callback idempotency, retry schedule, 4xx/5xx/429, `n8n_processed` atomic dedupe, `FOR UPDATE SKIP LOCKED` claim, lease expiry, concurrent dispatch.
 
-Тестовая БД `bizpilot_test`; migrations + seed; тесты не используют production БД.
+Тесты читают `DATABASE_URL` (локальный PostgreSQL 16) и используют только созданные ими строки с cleanup. В CI должна быть отдельная тестовая БД; production БД для тестов не используется. Реальные n8n/Telegram вызовы в integration-тестах не выполняются (fake client), это фиксируется как BLOCKED для runtime.
 
 ### 15.3. E2E (Playwright)
 
@@ -956,7 +989,7 @@ E2E использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`, production b
 
 ### 15.5. Telegram
 
-Ручной тест с credentials: n8n workflow → Telegram → callback. В CI `test.skip` с пояснением. Результат — в `docs/N8N.md` и `docs/IMPLEMENTATION_PLAN.md`.
+Ручной тест с credentials: n8n workflow → Telegram → callback. В CI `test.skip` с пояснением. Результат — в `docs/N8N.md` и `docs/IMPLEMENTATION_PLAN.md`. На 2026-11-19 runtime BLOCKED: credentials не предоставлены; workflow — draft. Приложение проверено через подписанный callback (`pnpm test:webhook`) без реального Telegram.
 
 ### 15.6. CI
 
@@ -1005,7 +1038,8 @@ E2E использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`, production b
 9. `Lead.message` ограничен 20 000 символов в Zod (body limit 256 KB — не то же самое, что контекст LLM).
 10. `scoreBreakdown` хранится как JSON с ключами AI-схемы; отображение — 5 прогресс-баров.
 11. Строгий граф переходов Lead/Task status не задан. MVP валидирует enum и не позволяет AI менять `status`; если нужен строгий граф — требуется согласование.
-12. **n8n_processed FAILED vs manual retry.** ТЗ 24.12 требует `INSERT ... ON CONFLICT DO NOTHING RETURNING`, поэтому повтор с тем же `idempotencyKey` после `FAILED` не будет принят. ТЗ 24.13 разрешает manual retry того же события/ключа. Варианты: (a) атомарный reclaim `FAILED` через `ON CONFLICT DO UPDATE ... WHERE status='FAILED'` (отклонение от точного SQL 24.12); (b) manual retry только для ошибок до n8n (network/5xx, когда строка ещё CLAIMED/отсутствует); (c) удаление FAILED-строки после callback (риск дубля). Рекомендация — (a) с тестами, но требуется явное согласование, так как 24.12 задаёт DO NOTHING. Решение до этапа 4.
+12. **n8n_processed FAILED vs manual retry — решено на этапе 4.** Основной механизм остаётся `INSERT ... ON CONFLICT DO NOTHING RETURNING` (ТЗ 24.12). После конфликта workflow читает статус и только для `FAILED` выполняет атомарный `UPDATE ... WHERE status='FAILED'` (reclaim) перед повторной отправкой. `SENT` и `CLAIMED` не переотправляются автоматически; `CLAIMED` старше 15 минут требует ручной сверки. Это сохраняет требование 24.12 и делает ручной retry (24.13) рабочим. Проверено unit/integration-тестами и SQL-тестами на реальном PostgreSQL; runtime n8n — BLOCKED.
+13. **Время последней попытки в UI.** Отдельное поле `lastAttemptAt` не добавлялось: `AutomationEvent.updatedAt` обновляется при claim/retry/смене статуса и отображается как «время последней попытки». Это не меняет схему ТЗ.
 
 ### 17.4. Что потребуется от пользователя позже
 
@@ -1017,19 +1051,23 @@ E2E использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`, production b
 
 ## 18. Журнал архитектурных решений
 
-| Дата       | Решение                                                   | Причина                                                                  |
-| ---------- | --------------------------------------------------------- | ------------------------------------------------------------------------ |
-| 2026-11-19 | Три слоя без `domain/`                                    | ТЗ 24.2                                                                  |
-| 2026-11-19 | Workspace scope через пользователя из БД                  | ТЗ 10, 24.9; защита от подмены workspaceId                               |
-| 2026-11-19 | Outbox + lazy dispatcher + DB lease                       | ТЗ 24.11; надёжность без worker/cron                                     |
-| 2026-11-19 | n8n_processed через SQL-миграцию                          | ТЗ 24.12; атомарный dedupe                                               |
-| 2026-11-19 | Два HMAC-секрета и две схемы                              | ТЗ 24.10; разделение входящего/исходящего доверия                        |
-| 2026-11-19 | AIAnalysis на каждую попытку                              | ТЗ 8.3/8.5; история успешных и неуспешных попыток                        |
-| 2026-11-19 | apply-analysis отдельным endpoint                         | ТЗ 24.5; нет endpoint в списке 11                                        |
-| 2026-11-19 | Contact/ Task создаются отдельными действиями после apply | 24.5 перечисляет только поля Lead + ActivityLog; избегаем неявного merge |
-| 2026-11-19 | Auth.js 5.0.0-beta.32                                     | Единственная опубликованная v5; ТЗ требует v5                            |
-| 2026-11-19 | n8n 1.123.98                                              | Baseline ТЗ; EOL риск зафиксирован                                       |
-| 2026-11-19 | shadcn/ui вендорится под Tailwind 3                       | Baseline Tailwind 3; CLI 4.x может тянуть Tailwind 4                     |
+| Дата       | Решение                                                            | Причина                                                                  |
+| ---------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| 2026-11-19 | Три слоя без `domain/`                                             | ТЗ 24.2                                                                  |
+| 2026-11-19 | Workspace scope через пользователя из БД                           | ТЗ 10, 24.9; защита от подмены workspaceId                               |
+| 2026-11-19 | Outbox + lazy dispatcher + DB lease                                | ТЗ 24.11; надёжность без worker/cron                                     |
+| 2026-11-19 | n8n_processed через SQL-миграцию                                   | ТЗ 24.12; атомарный dedupe                                               |
+| 2026-11-19 | Два HMAC-секрета и две схемы                                       | ТЗ 24.10; разделение входящего/исходящего доверия                        |
+| 2026-11-19 | AIAnalysis на каждую попытку                                       | ТЗ 8.3/8.5; история успешных и неуспешных попыток                        |
+| 2026-11-19 | apply-analysis отдельным endpoint                                  | ТЗ 24.5; нет endpoint в списке 11                                        |
+| 2026-11-19 | Contact/ Task создаются отдельными действиями после apply          | 24.5 перечисляет только поля Lead + ActivityLog; избегаем неявного merge |
+| 2026-11-19 | Auth.js 5.0.0-beta.32                                              | Единственная опубликованная v5; ТЗ требует v5                            |
+| 2026-11-19 | n8n 1.123.98                                                       | Baseline ТЗ; EOL риск зафиксирован                                       |
+| 2026-11-19 | Outbox claim через `FOR UPDATE SKIP LOCKED` + `AT TIME ZONE 'UTC'` | Lease не зависит от timezone PostgreSQL-сессии; проверено real DB        |
+| 2026-11-19 | n8n_processed: DO NOTHING + reclaim только FAILED                  | Совместимо с 24.12 и делает ручной retry 24.13 рабочим                   |
+| 2026-11-19 | `n8n-db-init` под profile `automation`                             | Роли/права не требуются базовому стеку; init идемпотентен                |
+| 2026-11-19 | n8n workflow помечен DRAFT                                         | Нет runtime n8n/Telegram; запрещено выдавать за проверенный экспорт      |
+| 2026-11-19 | shadcn/ui вендорится под Tailwind 3                                | Baseline Tailwind 3; CLI 4.x может тянуть Tailwind 4                     |
 
 ## 19. Источники проверки версий
 
@@ -1038,13 +1076,13 @@ E2E использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`, production b
 - n8n release notes: https://docs.n8n.io/release-notes/ — текущая линия 2.x (npm latest 2.48.5 на 2026-11-19), 3.0 stable ожидается в начале декабря 2026; 1.x support ends 2026-12-31 (n8n blog v3 announcement: https://blog.n8n.io/introducing-n8n-v3/).
 - Docker Hub API: `postgres:16.16-alpine`, `node:24.20.0-bookworm-slim`, `n8nio/n8n:1.123.98`.
 - Node.js 24.20.0 — LTS Krypton (`node -p process.release.lts`).
-- Локальное окружение: Windows 10 Pro 19045, 8 GB RAM, 187 GB free, Node 24.20.0, pnpm 12.16.1, npm 11.19.0, Git 2.56.0, Docker отсутствует, PostgreSQL отсутствует, WSL отсутствует.
+- Локальное окружение: Windows 10 Pro 19045, 8 GB RAM, 187 GB free, Node 24.20.0, pnpm 12.16.1, npm 11.19.0, Git 2.56.0, локальный PostgreSQL 16 запущен, Docker отсутствует, WSL отсутствует.
 
 ## 20. Связанные документы
 
 - `AGENTS.md` — правила работы.
 - `docs/IMPLEMENTATION_PLAN.md` — этапы, статусы, проверки, блокеры.
-- `docs/API.md` — будет создан на этапе 2/5.
-- `docs/SECURITY.md` — будет создан на этапе 5 (таблица security review).
-- `docs/DEPLOYMENT.md` — будет создан на этапе 5.
-- `docs/N8N.md` — будет создан на этапе 4.
+- `docs/API.md` — endpoints, envelope, automation/webhook, ошибки.
+- `docs/SECURITY.md` — модель безопасности, проверки, audit, ограничения.
+- `docs/DEPLOYMENT.md` — Docker, ENV, миграции, seed.
+- `docs/N8N.md` — workflow, HMAC, dedupe, Telegram, retry, диагностика.

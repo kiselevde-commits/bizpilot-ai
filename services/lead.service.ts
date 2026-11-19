@@ -11,10 +11,12 @@ import {
   CUSTOMER_TYPES,
 } from "@/lib/constants";
 import {
-  parseSort,
-  paginationQuerySchema,
-  type PaginationQuery,
-} from "@/lib/validation/query";
+  buildLeadCreatedEventPayload,
+  buildLeadCreatedIdempotencyKey,
+  LEAD_CREATED_EVENT_TYPE,
+} from "@/lib/automation/lead-event";
+import { queueAutomationDispatch } from "@/services/automation.service";
+import { parseSort, paginationQuerySchema, type PaginationQuery } from "@/lib/validation/query";
 import type { Lead } from "@prisma/client";
 
 const LEAD_SORT_ALLOW_LIST: readonly string[] = [
@@ -43,10 +45,7 @@ export type LeadListResult = {
   };
 };
 
-export async function listLeads(
-  user: SessionUser,
-  query: LeadListQuery,
-): Promise<LeadListResult> {
+export async function listLeads(user: SessionUser, query: LeadListQuery): Promise<LeadListResult> {
   const parsed = paginationQuerySchema.safeParse({
     page: query.page,
     limit: query.limit,
@@ -59,11 +58,7 @@ export async function listLeads(
   }
 
   const { page, limit, search, sort } = parsed.data;
-  const sortSpec = parseSort(
-    sort,
-    LEAD_SORT_ALLOW_LIST,
-    { field: "createdAt", direction: "desc" },
-  );
+  const sortSpec = parseSort(sort, LEAD_SORT_ALLOW_LIST, { field: "createdAt", direction: "desc" });
 
   const where: Prisma.LeadWhereInput = {
     workspaceId: user.workspaceId,
@@ -112,10 +107,7 @@ export async function listLeads(
   return { items, pagination: { page, limit, total, totalPages } };
 }
 
-export async function getLead(
-  user: SessionUser,
-  id: string,
-): Promise<Lead | null> {
+export async function getLead(user: SessionUser, id: string): Promise<Lead | null> {
   if (!id) {
     throw new AppError("VALIDATION_ERROR", "Не указан ID заявки");
   }
@@ -179,10 +171,7 @@ export type LeadCreateInput = {
   assignedToId?: string | null;
 };
 
-export async function createLead(
-  user: SessionUser,
-  input: LeadCreateInput,
-): Promise<Lead> {
+export async function createLead(user: SessionUser, input: LeadCreateInput): Promise<Lead> {
   if (!input.title || input.title.trim().length === 0) {
     throw new AppError("VALIDATION_ERROR", "Название заявки обязательно");
   }
@@ -203,13 +192,15 @@ export async function createLead(
     throw new AppError("VALIDATION_ERROR", "Источник слишком длинный");
   }
 
-  const status = input.status && LEAD_STATUSES.includes(input.status as (typeof LEAD_STATUSES)[number])
-    ? (input.status as (typeof LEAD_STATUSES)[number])
-    : "NEW";
+  const status =
+    input.status && LEAD_STATUSES.includes(input.status as (typeof LEAD_STATUSES)[number])
+      ? (input.status as (typeof LEAD_STATUSES)[number])
+      : "NEW";
 
-  const priority = input.priority && PRIORITIES.includes(input.priority as (typeof PRIORITIES)[number])
-    ? (input.priority as (typeof PRIORITIES)[number])
-    : "MEDIUM";
+  const priority =
+    input.priority && PRIORITIES.includes(input.priority as (typeof PRIORITIES)[number])
+      ? (input.priority as (typeof PRIORITIES)[number])
+      : "MEDIUM";
 
   const category =
     input.category && LEAD_CATEGORIES.includes(input.category as (typeof LEAD_CATEGORIES)[number])
@@ -222,7 +213,8 @@ export async function createLead(
       : null;
 
   const customerType =
-    input.customerType && CUSTOMER_TYPES.includes(input.customerType as (typeof CUSTOMER_TYPES)[number])
+    input.customerType &&
+    CUSTOMER_TYPES.includes(input.customerType as (typeof CUSTOMER_TYPES)[number])
       ? (input.customerType as (typeof CUSTOMER_TYPES)[number] | null)
       : null;
 
@@ -256,8 +248,33 @@ export async function createLead(
       },
     });
 
+    // Outbox: the event is committed together with the Lead. If this insert
+    // fails, the whole transaction rolls back and no partial Lead exists.
+    await tx.automationEvent.create({
+      data: {
+        workspaceId: user.workspaceId,
+        eventType: LEAD_CREATED_EVENT_TYPE,
+        entityId: created.id,
+        payload: buildLeadCreatedEventPayload(
+          {
+            leadId: created.id,
+            title: created.title,
+            priority: created.priority,
+            category: created.category,
+            summary: created.summary,
+          },
+          process.env.APP_BASE_URL,
+        ) as unknown as Prisma.InputJsonValue,
+        status: "PENDING",
+        idempotencyKey: buildLeadCreatedIdempotencyKey(created.id),
+      },
+    });
+
     return created;
   });
+
+  // Best-effort accelerator only. Reliability is guaranteed by the PENDING row.
+  queueAutomationDispatch();
 
   return lead;
 }
@@ -291,14 +308,16 @@ export async function updateLead(
 
   const category =
     input.category !== undefined
-      ? input.category === null || LEAD_CATEGORIES.includes(input.category as (typeof LEAD_CATEGORIES)[number])
+      ? input.category === null ||
+        LEAD_CATEGORIES.includes(input.category as (typeof LEAD_CATEGORIES)[number])
         ? (input.category as (typeof LEAD_CATEGORIES)[number] | null)
         : existing.category
       : existing.category;
 
   const intent =
     input.intent !== undefined
-      ? input.intent === null || LEAD_INTENTS.includes(input.intent as (typeof LEAD_INTENTS)[number])
+      ? input.intent === null ||
+        LEAD_INTENTS.includes(input.intent as (typeof LEAD_INTENTS)[number])
         ? (input.intent as (typeof LEAD_INTENTS)[number] | null)
         : existing.intent
       : existing.intent;
@@ -354,10 +373,7 @@ export async function updateLead(
   });
 }
 
-export async function deleteLead(
-  user: SessionUser,
-  id: string,
-): Promise<void> {
+export async function deleteLead(user: SessionUser, id: string): Promise<void> {
   const existing = await prisma.lead.findFirst({
     where: { id, workspaceId: user.workspaceId },
     include: { tasks: true },
@@ -388,9 +404,7 @@ export async function deleteLead(
   });
 }
 
-export async function getLeadStats(
-  user: SessionUser,
-): Promise<{
+export async function getLeadStats(user: SessionUser): Promise<{
   total: number;
   byStatus: Record<string, number>;
   byPriority: Record<string, number>;

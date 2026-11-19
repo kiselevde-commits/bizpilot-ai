@@ -44,10 +44,11 @@ components/        # UI-компоненты (ui/, layout/, dashboard/, leads/, 
 lib/               # ai, auth, database, integrations, security, utils, validation
 services/          # бизнес-сценарии (Lead, Contact, Task, Dashboard, Activity, AI, Automation)
 prisma/            # schema.prisma, миграции, seed
+n8n/workflows/     # draft lead_created_notification.json для импорта
+docker/            # Dockerfile, postgres init, n8n init-db.sql, WSL2 hints
 tests/             # unit, integration, e2e
-docker/            # Dockerfile, WSL2 hints
 docs/              # ARCHITECTURE, IMPLEMENTATION_PLAN, API, SECURITY, DEPLOYMENT, N8N
-scripts/           # test-ai (ручной smoke с реальным provider)
+scripts/           # test-ai, test-webhook
 ```
 
 ## Локальный запуск (без Docker)
@@ -92,7 +93,15 @@ docker compose up -d --build
 
 Compose читает `AUTH_SECRET`, `SEED_ADMIN_PASSWORD`, `AI_*` и строки подключения из env-файла. Для Docker используйте `.env.docker.example` → `.env.docker` и запускайте `docker compose --env-file .env.docker up -d --build`. Сервис `migrate` применяет миграции и выполняет idempotent seed до старта `app`; healthcheck использует `node -e fetch(...)`, потому что `wget` в slim-образе отсутствует.
 
-n8n запускается отдельно: `docker compose --profile automation up -d` (этап 4; не установлен в Stage 1).
+n8n запускается отдельно под профилем `automation`:
+
+```bash
+docker compose --env-file .env.docker --profile automation up -d
+```
+
+Профиль запускает `n8n-db-init` (идемпотентные роли `n8n_app`/`n8n_dedupe`),
+затем n8n `1.123.98`. Базовый `docker compose up` не требует n8n-секретов.
+Подробно — `docs/N8N.md`.
 
 ## Демо-учётные записи
 
@@ -131,6 +140,45 @@ pnpm test:ai
 
 Скрипт отказывается работать при `AI_PROVIDER=mock` или `ALLOW_MOCK_AI=true`, проверяет реальный HTTP-запрос, JSON, Zod-валидацию, category/intent/priority/leadScore, summary, draft_reply, timeout и ошибку провайдера. Ключи не выводятся.
 
+## Автоматизация n8n + Telegram
+
+Создание заявки в одной транзакции создаёт `AutomationEvent(PENDING)`.
+Best-effort dispatcher после commit и lazy dispatcher на Dashboard/`/settings`/
+automation API отправляют подписанный HMAC-запрос в n8n. n8n проверяет подпись и
+timestamp, атомарно захватывает `n8n_processed`, отправляет Telegram и вызывает
+`POST /api/webhooks/n8n`; событие становится `DELIVERED` или `FAILED`.
+
+```env
+N8N_WEBHOOK_URL=http://n8n:5678/webhook/lead-created
+N8N_WEBHOOK_SECRET=<32+ bytes>
+N8N_CALLBACK_SECRET=<32+ bytes, must differ>
+N8N_TIMEOUT_MS=10000
+TELEGRAM_BOT_TOKEN=<bot token для n8n credential>
+TELEGRAM_CHAT_ID=<chat id>
+```
+
+Проверки:
+
+```bash
+pnpm test:webhook -- --idempotency-key "lead.created:<leadId>" --status delivered
+```
+
+Возможности:
+
+- статусы `PENDING → SENT → DELIVERED`, `RETRYING`, `FAILED`;
+- retry 1 + 3 (1/5/30 минут), максимум 24 часа, 4xx terminal, 429 `Retry-After`;
+- ручной retry ADMIN/MANAGER только для FAILED, тот же `idempotencyKey`;
+- `n8n_processed` с `INSERT ... ON CONFLICT DO NOTHING RETURNING`;
+- `CLAIMED` старше 15 минут не переотправляется автоматически и виден в
+  `/settings`;
+- `/settings` показывает состояние n8n/Telegram, журнал, ошибки и время
+  последней попытки.
+
+**Статус runtime:** реальный n8n + Telegram **BLOCKED** — нет credentials и
+Docker. Файл `n8n/workflows/lead_created_notification.json` — **draft для
+импорта**, не подтверждённый экспорт работающего workflow. Настройка и
+диагностика: `docs/N8N.md`.
+
 ## Тесты
 
 ```bash
@@ -138,6 +186,7 @@ pnpm test:unit      # Vitest unit-тесты
 pnpm test:integration
 pnpm test:e2e       # Playwright
 pnpm test:ai        # ручной smoke с реальным provider (скрипт scripts/test-ai.ts)
+pnpm test:webhook   # ручной подписанный callback n8n (scripts/test-webhook.ts)
 pnpm typecheck
 pnpm lint
 pnpm build
@@ -152,6 +201,10 @@ pnpm format:check
 - Rate limiting — in-memory Map (сброс при рестарте).
 - JWT без отзыва сессий.
 - n8n — необязательная интеграция; CRM работает при выключенном n8n.
+- Реальный n8n + Telegram runtime не проверен (нет credentials/Docker); workflow — draft для импорта.
+- n8n 1.x EOL 2026-12-31; возможен переход на 2.x/3.x только после согласования.
+- Outbox — eventual delivery; `SENT` без callback требует ручной сверки; нет exactly-once для Telegram.
+- `pnpm audit --prod` показывает 2 moderate + 4 high в транзитивных зависимостях; обновления вне baseline требуют согласования (см. `docs/SECURITY.md`).
 - `AI_PROVIDER=mock` допустим только в разработке/тестах (`ALLOW_MOCK_AI=true`); в production запрещён.
 - Auth.js v5 только в точной beta-версии `5.0.0-beta.32`.
 - POST `/api/webhooks/lead-created` отсутствует; только `POST /api/webhooks/n8n`.

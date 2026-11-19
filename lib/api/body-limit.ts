@@ -16,7 +16,12 @@ export function assertJsonContentType(request: Request): void {
   }
 }
 
-export async function readJsonBody(request: Request, maxBytes: number): Promise<unknown> {
+/**
+ * Reads the request body as raw bytes with an actual byte counter.
+ * Content-Length is checked first, then every chunk is counted before buffering.
+ * The raw bytes must be used as-is for webhook HMAC verification.
+ */
+export async function readRawBody(request: Request, maxBytes: number): Promise<Uint8Array> {
   const contentLengthHeader = request.headers.get("content-length");
 
   if (contentLengthHeader) {
@@ -68,6 +73,11 @@ export async function readJsonBody(request: Request, maxBytes: number): Promise<
     offset += chunk.byteLength;
   }
 
+  return bytes;
+}
+
+export async function readJsonBody(request: Request, maxBytes: number): Promise<unknown> {
+  const bytes = await readRawBody(request, maxBytes);
   const text = new TextDecoder().decode(bytes);
 
   if (text.trim().length === 0) {

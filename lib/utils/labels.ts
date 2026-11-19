@@ -1,4 +1,12 @@
-import type { ContactStatus, LeadStatus, Priority, Role, TaskStatus } from "@prisma/client";
+import type {
+  AutomationEventStatus,
+  ContactStatus,
+  IntegrationStatus,
+  LeadStatus,
+  Priority,
+  Role,
+  TaskStatus,
+} from "@prisma/client";
 
 export const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Администратор",
@@ -34,6 +42,20 @@ export const CONTACT_STATUS_LABELS: Record<ContactStatus, string> = {
   NEW: "Новый",
   ACTIVE: "Активный",
   INACTIVE: "Неактивный",
+};
+
+export const AUTOMATION_STATUS_LABELS: Record<AutomationEventStatus, string> = {
+  PENDING: "Ожидает отправки",
+  SENT: "Принято n8n",
+  DELIVERED: "Доставлено",
+  RETRYING: "Ожидает повтора",
+  FAILED: "Ошибка",
+};
+
+export const INTEGRATION_STATUS_LABELS: Record<IntegrationStatus, string> = {
+  NOT_CONFIGURED: "Не настроено",
+  ACTIVE: "Активно",
+  ERROR: "Ошибка",
 };
 
 export function formatDateTime(value: Date | string): string {

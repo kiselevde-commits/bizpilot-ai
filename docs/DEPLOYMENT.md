@@ -29,19 +29,30 @@ Compose-лимиты: postgres 512 MB, app 1 GB, n8n 512 MB.
 Создайте `.env` по шаблону `.env.example`. Секреты не коммитить.
 
 Обязательные:
+
 - `DATABASE_URL` — строка подключения PostgreSQL.
 - `SHADOW_DATABASE_URL` — отдельная пустая база для Prisma shadow database (`prisma migrate dev`). В Docker она создаётся скриптом `docker/postgres/init/01-create-shadow.sql` при первой инициализации тома; для локального PostgreSQL создайте `bizpilot_shadow` вручную.
 - `AUTH_SECRET` — секрет Auth.js (минимум 32 символа).
 - `SEED_ADMIN_PASSWORD` — пароль для всех трёх демо-пользователей (обязателен, без значения по умолчанию).
 
 AI (реальный провайдер по умолчанию; mock — только при явном разрешении):
+
 - `AI_PROVIDER=openai-compatible`; `ALLOW_MOCK_AI=false`
 - `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, `AI_TIMEOUT_MS=60000`
 - `AI_PROVIDER=mock` допускается только вместе с `ALLOW_MOCK_AI=true` для разработки/тестов.
 
-n8n / Telegram (этап 4; пустые до настройки):
-- `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET`, `N8N_CALLBACK_SECRET`
-- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`
+n8n / Telegram (этап 4; обязательны только для профиля `automation`):
+
+- `N8N_WEBHOOK_URL` — адрес webhook n8n из контейнера app: `http://n8n:5678/webhook/lead-created`.
+- `N8N_WEBHOOK_SECRET`, `N8N_CALLBACK_SECRET` — разные значения, ≥32 байта.
+- `N8N_TIMEOUT_MS=10000`.
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` — для n8n credential/уведомлений.
+- `N8N_PUBLIC_URL`, `N8N_HOST`, `N8N_TIMEZONE` — публичный URL/хост n8n.
+- `BIZPILOT_BASE_URL` — адрес app из контейнера n8n (`http://app:3000`).
+- `N8N_ENCRYPTION_KEY`, `N8N_BASIC_AUTH_USER`, `N8N_BASIC_AUTH_PASSWORD`.
+- `N8N_DB_NAME`, `N8N_DB_USER`, `N8N_DB_PASSWORD`.
+- `N8N_DEDUPE_DB_USER`, `N8N_DEDUPE_DB_PASSWORD`.
+- `NODE_FUNCTION_ALLOW_BUILTIN=crypto` — для Code node HMAC.
 
 ## Запуск
 
@@ -49,8 +60,12 @@ n8n / Telegram (этап 4; пустые до настройки):
 # Сборка и запуск
 docker compose up -d --build
 
+# n8n (profile automation): n8n-db-init -> n8n
+docker compose --env-file .env.docker --profile automation up -d
+
 # Проверка здоровья
 # app: http://localhost:3000/api/ai/health
+# n8n: http://localhost:5678/healthz
 # postgres: 127.0.0.1:5432
 
 # Остановка
@@ -58,6 +73,8 @@ docker compose down
 ```
 
 Миграции и seed выполняются сервисом `migrate` (`prisma migrate deploy` + `prisma db seed`) перед запуском `app`; повторный seed не создаёт дублей.
+
+`n8n-db-init` под профилем `automation` идемпотентно создаёт роли `n8n_app`/`n8n_dedupe`, отдельную БД `n8n` и минимальные права на `n8n_processed`. Базовый `docker compose up` не требует n8n-секретов.
 
 ## Миграции и seed
 
@@ -72,22 +89,25 @@ Seed создаёт: 1 Workspace, 3 пользователя (ADMIN/MANAGER/OPER
 
 ## Демо-учётные записи
 
-| Email | Роль | Пароль |
-|---|---|---|
-| admin@demo.local | ADMIN | `SEED_ADMIN_PASSWORD` |
-| manager@demo.local | MANAGER | `SEED_ADMIN_PASSWORD` |
+| Email               | Роль     | Пароль                |
+| ------------------- | -------- | --------------------- |
+| admin@demo.local    | ADMIN    | `SEED_ADMIN_PASSWORD` |
+| manager@demo.local  | MANAGER  | `SEED_ADMIN_PASSWORD` |
 | operator@demo.local | OPERATOR | `SEED_ADMIN_PASSWORD` |
 
 ## Healthcheck
 
 - `GET /api/ai/health` — публичный, возвращает `{ status: "ok" }`; используется Docker healthcheck.
+- n8n — `GET /healthz` на `127.0.0.1:5678`.
 - Postgres: `pg_isready -U bizpilot -d bizpilot`.
 
 ## Ограничения
 
-- n8n 1.x EOL 2026-12-31; проверьте совместимость 2.x/3.x перед этапом 4.
+- Реальный n8n + Telegram runtime BLOCKED: нет credentials/Docker; workflow — draft.
+- n8n 1.x EOL 2026-12-31; проверьте совместимость 2.x/3.x.
 - Auth.js v5 только beta `5.0.0-beta.32`.
 - `AI_PROVIDER=mock` запрещён в production без `ALLOW_MOCK_AI=true`.
 - Rate limiting in-memory (не синхронизируется между инстансами).
 - JWT без отзыва сессий.
+- Outbox eventual; `SENT` без callback требует ручной сверки.
 - POST `/api/webhooks/lead-created` отсутствует.

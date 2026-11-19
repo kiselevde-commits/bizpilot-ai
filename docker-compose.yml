@@ -33,8 +33,7 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       SHADOW_DATABASE_URL: ${SHADOW_DATABASE_URL:?SHADOW_DATABASE_URL is required}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
-    command:
-      ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm exec prisma db seed"]
+    command: ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm exec prisma db seed"]
 
   app:
     build:
@@ -57,6 +56,12 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-60000}
+      N8N_WEBHOOK_URL: ${N8N_WEBHOOK_URL:-http://n8n:5678/webhook/lead-created}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:-}
+      N8N_CALLBACK_SECRET: ${N8N_CALLBACK_SECRET:-}
+      N8N_TIMEOUT_MS: ${N8N_TIMEOUT_MS:-10000}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
     ports:
       - "127.0.0.1:3000:3000"
     mem_limit: 1024m
@@ -76,5 +81,91 @@ services:
       retries: 5
       start_period: 40s
 
+  n8n-db-init:
+    image: postgres:16.16-alpine
+    profiles: ["automation"]
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      PGHOST: postgres
+      PGUSER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      PGDATABASE: ${POSTGRES_DB:?POSTGRES_DB is required}
+      APP_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+      N8N_DB_NAME: ${N8N_DB_NAME:-n8n}
+      N8N_DB_USER: ${N8N_DB_USER:-n8n_app}
+      N8N_DB_PASSWORD: ${N8N_DB_PASSWORD:?N8N_DB_PASSWORD is required for the automation profile}
+      N8N_DEDUPE_DB_USER: ${N8N_DEDUPE_DB_USER:-n8n_dedupe}
+      N8N_DEDUPE_DB_PASSWORD: ${N8N_DEDUPE_DB_PASSWORD:?N8N_DEDUPE_DB_PASSWORD is required for the automation profile}
+    volumes:
+      - ./docker/n8n/init-db.sql:/init-db.sql:ro
+    command:
+      [
+        "sh",
+        "-c",
+        'psql -v ON_ERROR_STOP=1 -v app_db="$$APP_DB" -v n8n_db="$$N8N_DB_NAME" -v n8n_user="$$N8N_DB_USER" -v n8n_password="$$N8N_DB_PASSWORD" -v dedupe_user="$$N8N_DEDUPE_DB_USER" -v dedupe_password="$$N8N_DEDUPE_DB_PASSWORD" -f /init-db.sql',
+      ]
+
+  n8n:
+    image: n8nio/n8n:1.123.98
+    profiles: ["automation"]
+    restart: unless-stopped
+    depends_on:
+      n8n-db-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      app:
+        condition: service_started
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: "5432"
+      DB_POSTGRESDB_DATABASE: ${N8N_DB_NAME:-n8n}
+      DB_POSTGRESDB_USER: ${N8N_DB_USER:-n8n_app}
+      DB_POSTGRESDB_PASSWORD: ${N8N_DB_PASSWORD:?N8N_DB_PASSWORD is required for the automation profile}
+      N8N_ENCRYPTION_KEY: ${N8N_ENCRYPTION_KEY:?N8N_ENCRYPTION_KEY is required for the automation profile}
+      N8N_HOST: ${N8N_HOST:-localhost}
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: http
+      N8N_SECURE_COOKIE: "false"
+      WEBHOOK_URL: ${N8N_PUBLIC_URL:-http://localhost:5678/}
+      GENERIC_TIMEZONE: ${N8N_TIMEZONE:-Europe/Moscow}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+      N8N_TEMPLATES_ENABLED: "false"
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      NODE_FUNCTION_ALLOW_BUILTIN: "crypto"
+      N8N_BASIC_AUTH_ACTIVE: "true"
+      N8N_BASIC_AUTH_USER: ${N8N_BASIC_AUTH_USER:?N8N_BASIC_AUTH_USER is required for the automation profile}
+      N8N_BASIC_AUTH_PASSWORD: ${N8N_BASIC_AUTH_PASSWORD:?N8N_BASIC_AUTH_PASSWORD is required for the automation profile}
+      N8N_WEBHOOK_SECRET: ${N8N_WEBHOOK_SECRET:?N8N_WEBHOOK_SECRET is required for the automation profile}
+      N8N_CALLBACK_SECRET: ${N8N_CALLBACK_SECRET:?N8N_CALLBACK_SECRET is required for the automation profile}
+      BIZPILOT_BASE_URL: ${BIZPILOT_BASE_URL:-http://app:3000}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:?TELEGRAM_CHAT_ID is required for the automation profile}
+    ports:
+      - "127.0.0.1:5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    mem_limit: 512m
+    memswap_limit: 1024m
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:5678/healthz').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
 volumes:
   bizpilot_pgdata:
+  n8n_data:

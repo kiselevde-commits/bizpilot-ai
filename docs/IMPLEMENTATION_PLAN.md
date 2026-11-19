@@ -1,9 +1,9 @@
 # План реализации BizPilot AI
 
-**Версия:** 1.3 (исправление критических дефектов)  
+**Версия:** 1.4 (этап 4 — автоматизация)  
 **Дата:** 2026-11-19  
 **Источник:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24  
-**Текущий этап:** этапы 1–3 (foundation, CRUD/UI, AI backend) проверены на локальном PostgreSQL 16; исправлены 15 дефектов и дополнительные runtime-баги. Реальный AI-провайдер подключён и проверен (`pnpm test:ai`, Yandex AI Studio / Alice AI LLM Flash). Docker — BLOCKED (нет Docker/VPS). Этап 4 не начат.
+**Текущий этап:** этапы 1–4 реализованы в коде и тестах. Локальный PostgreSQL 16 используется для миграций, seed, API и integration-тестов. Реальный AI-провайдер проверен. Реальный n8n + Telegram runtime — **BLOCKED** (нет n8n/Telegram credentials и Docker). Docker-приёмка — BLOCKED.
 
 ## Легенда статусов
 
@@ -14,14 +14,14 @@
 
 ## Текущее состояние
 
-| Этап                   | Статус                          | Комментарий                                                                                                                                                                                                                         |
-| ---------------------- | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 0. Аудит и документы   | DONE                            | Документы созданы; проверка согласованности выполнена вручную                                                                                                                                                                       |
-| 1. Foundation          | DONE (код) / BLOCKED (проверки) | Код создан; Docker/PostgreSQL отсутствуют — миграции, seed, integration-тесты, Compose, login не запущены                                                                                                                           |
-| 2. CRUD и UI           | DONE (UI)                       | CRM страницы: Dashboard, Leads, Contacts, Tasks (list/detail/create/edit), AI assistant integration point, login page. Не проверено с БД (нет PostgreSQL).                                                                          |
-| 3. AI                  | DONE (бэкенд + тесты)           | Реализованы `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `POST /api/ai/generate-reply`, `GET /api/ai/history`, провайдеры OpenAICompatible + Mock, Zod-валидация, retry, таймаут, история в БД. 94 теста проходят. |
-| 4. Automation          | TODO                            | Нужны n8n/Telegram credentials и решение по версии n8n                                                                                                                                                                              |
-| 5. Проверка и упаковка | TODO                            | Зависит от 1–4                                                                                                                                                                                                                      |
+| Этап                   | Статус                                         | Комментарий                                                                                                                                                                                                                         |
+| ---------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0. Аудит и документы   | DONE                                           | Документы созданы; проверка согласованности выполнена вручную                                                                                                                                                                       |
+| 1. Foundation          | DONE (локальный PostgreSQL) / BLOCKED (Docker) | Миграции, seed, auth, CRUD и integration-тесты выполнены на локальном PostgreSQL 16. Docker Desktop/WSL2 отсутствуют.                                                                                                               |
+| 2. CRUD и UI           | DONE (UI)                                      | CRM страницы: Dashboard, Leads, Contacts, Tasks (list/detail/create/edit), AI assistant integration point, login page. Проверено на локальном PostgreSQL 16.                                                                        |
+| 3. AI                  | DONE (бэкенд + тесты)                          | Реализованы `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `POST /api/ai/generate-reply`, `GET /api/ai/history`, провайдеры OpenAICompatible + Mock, Zod-валидация, retry, таймаут, история в БД. 94 теста проходят. |
+| 4. Automation          | DONE (код/тесты) / BLOCKED (runtime)           | Outbox, HMAC, n8n_processed, retry, API, Settings UI, n8n draft workflow реализованы. Runtime n8n/Telegram и Docker — BLOCKED: нет credentials/Docker.                                                                              |
+| 5. Проверка и упаковка | TODO                                           | Зависит от 1–4                                                                                                                                                                                                                      |
 
 ## 1. Результаты аудита окружения (этап 0)
 
@@ -118,7 +118,10 @@
 
 ## 3. Этап 1 — Foundation
 
-**Статус: BLOCKED** — требуется подтверждение пользователя и Docker/PostgreSQL.
+**Статус: DONE (локальный PostgreSQL) / BLOCKED (Docker).** Обновление
+2026-11-19: локальный PostgreSQL 16 запущен, миграции и seed выполнены,
+integration/API/UI-проверки проведены. Docker Desktop/WSL2 по-прежнему
+отсутствуют.
 
 ### 3.1. Задачи
 
@@ -238,7 +241,7 @@
 
 ## 5. Этап 3 — AI
 
-**Статус: DONE (бэкенд + тесты)** — реализовано всё бэкенд API и 94 теста проходят. Остаются UI-компоненты и реальный AI smoke test.
+**Статус: DONE** — бэкенд, UI AI-панели и реальный smoke Yandex AI Studio проверены. Остаются отдельные E2E-сценарии и bundle inspection.
 
 ### 5.1. Задачи
 
@@ -251,12 +254,12 @@
 - [x] Реализовать `POST /api/ai/generate-reply` — Zod, max 800, без автоотправки/сохранения.
 - [x] Реализовать `GET /api/ai/history` — Workspace scope, пагинация, сортировка createdAt DESC.
 - [x] Реализовать `GET /api/ai/health` (public, минимальный, без секретов).
-- [ ] Реализовать AI UI: панель анализа, score + breakdown, contacts, missing info, recommended action, draft reply, copy, mailto, apply, history, ошибки/disabled.
-- [ ] Реализовать AI Assistant page.
+- [x] Реализовать AI UI: панель анализа, score + breakdown, contacts, missing info, recommended action, draft reply, copy, mailto, apply, history, ошибки/disabled.
+- [x] Реализовать AI Assistant page.
 - [x] Unit: schema valid/invalid, enums, ranges, lengths, prompt sanitize, hash, retry decision, timeout (MockAIProvider + AIService).
 - [x] Integration: adapter valid/invalid JSON/timeout/provider error; history; no raw prompt; apply transaction; Workspace isolation.
 - [ ] E2E scenario 2: analyze с mock, проверить summary/priority/score/history.
-- [ ] Создать `scripts/test-ai.ts`; запустить вручную с реальным provider; записать результат.
+- [x] Создать `scripts/test-ai.ts`; запустить вручную с реальным provider; записать результат (PASS, см. 5.3/14.4).
 - [ ] Проверить отсутствие AI key на клиенте (grep/bundle inspection).
 
 ### 5.2. Проверки этапа 3
@@ -290,45 +293,62 @@
 
 ## 6. Этап 4 — Automation
 
-**Статус: TODO** (нужны n8n/Telegram credentials; требуется решение по версии n8n).
+**Статус: DONE (код/тесты) / BLOCKED (runtime).** Реализованы outbox, HMAC,
+PostgreSQL-дедупликация, retry, API, Settings UI, Docker profile и draft
+workflow. Реальный n8n + Telegram не проверены: нет credentials и Docker.
 
 ### 6.1. Задачи
 
-- [ ] Реализовать `lib/security/hmac.ts`: sign/verify, constant-time compare, timestamp window ±5 минут, raw body.
-- [ ] Реализовать `lib/security/rate-limit.ts` (если не сделано на этапе 2) для webhook 1000/мин/IP.
-- [ ] Реализовать `services/automation.service.ts`: createEvent (в транзакции с Lead), atomic claim с lease, dispatch max 10, retry schedule, manual retry, status counts, stale CLAIMED.
-- [ ] Реализовать `lib/integrations/n8n.ts`: исходящий webhook, HMAC headers, timeout, response parsing, sanitized errors.
-- [ ] Реализовать `POST /api/webhooks/n8n`: raw body 64 KB, HMAC `N8N_CALLBACK_SECRET`, timestamp ±5 минут, Zod, idempotency, SENT→DELIVERED/FAILED, Integration status.
-- [ ] Реализовать `GET /api/automation/events` (ADMIN/MANAGER, пагинация, lazy dispatch).
-- [ ] Реализовать `POST /api/automation/events/:id/retry` (ADMIN/MANAGER, FAILED, <24h, same key).
-- [ ] Реализовать `GET /api/automation/status` (counts, integrations, stale claims, lazy dispatch).
-- [ ] Реализовать Settings UI: read-only profile, automation status, integrations status, logout; OPERATOR видит только profile/logout; без форм секретов.
-- [ ] Реализовать lazy dispatcher на Dashboard и Settings/Automation.
-- [ ] Создать `n8n/workflows/lead_created_notification.json`: Webhook (raw body) → Code HMAC/timestamp → Postgres atomic INSERT ON CONFLICT → IF duplicate → Telegram → Postgres SENT/FAILED → HTTP callback.
-- [ ] Создать `docker/postgres/init` скрипты: БД `bizpilot`, `n8n`; роли `n8n_app`, `n8n_dedupe`; права только на `n8n_processed`; без superuser.
-- [ ] Добавить n8n service в `docker-compose.yml` под profile `automation` с точным tag, volume, env, healthcheck.
-- [ ] Создать `docs/N8N.md`: запуск, импорт workflow, webhook, HMAC secrets, Telegram credentials, тест уведомления, повторная доставка, диагностика, EOL/at-most-once ограничения.
-- [ ] Unit: HMAC sign/verify, stale timestamp, idempotency key, retry schedule, status transitions, claim/lease.
-- [ ] Integration: valid/invalid HMAC, replay, duplicate callback, SENT/DELIVERED/FAILED, 4xx/5xx/429, attempts, max age, n8n_processed atomic dedupe.
-- [ ] Ручной E2E: реальный n8n + Telegram, сообщение получено, повтор не создаёт дубль.
-- [ ] Проверить CRM при выключенном n8n (PENDING, ошибок нет).
+- [x] `lib/security/hmac.ts`: sign/verify, constant-time compare, timestamp ±5 минут, raw bytes.
+- [x] Rate limit webhook 1000/мин/IP + rate limits automation API.
+- [x] `services/automation.service.ts`: createEvent в транзакции с Lead, atomic claim с lease, dispatch max 10, retry schedule, manual retry, status counts, stale CLAIMED.
+- [x] `lib/integrations/n8n.ts`: исходящий webhook, HMAC headers, timeout, response parsing, sanitized errors, Retry-After.
+- [x] `POST /api/webhooks/n8n`: raw body 64 KB, HMAC, timestamp ±5 минут, Zod, idempotency, DELIVERED/FAILED, Integration status, no downgrade.
+- [x] `GET /api/automation/events` (ADMIN/MANAGER, пагинация, lazy dispatch).
+- [x] `POST /api/automation/events/:id/retry` (ADMIN/MANAGER, FAILED, <24h, same key).
+- [x] `GET /api/automation/status` (counts, integrations, stale claims, lazy dispatch).
+- [x] Settings UI: read-only profile, automation status, integrations, журнал, retry; OPERATOR видит только profile/logout; без форм секретов.
+- [x] Lazy dispatcher на Dashboard, `/settings` и automation API.
+- [x] `n8n/workflows/lead_created_notification.json` — **DRAFT**: Webhook → Code HMAC → Postgres claim → duplicate/reclaim → Telegram → SENT/FAILED → callback; без секретов в JSON.
+- [x] `docker/n8n/init-db.sql` + Compose `n8n-db-init`: БД `n8n`, роли `n8n_app`/`n8n_dedupe`, только SELECT/INSERT/UPDATE на `n8n_processed`, без superuser.
+- [x] n8n service в `docker-compose.yml` под profile `automation` с точным tag, volume, env, healthcheck.
+- [x] `docs/N8N.md`, `docs/API.md`, `docs/SECURITY.md`; обновлены ARCHITECTURE/README/DEPLOYMENT.
+- [x] Unit: HMAC, timestamp, raw body, idempotency key, retry schedule, status transitions, roles, claim/lease, callback.
+- [x] Integration: outbox claim/lease/concurrency на реальном PostgreSQL; `n8n_processed` atomic dedupe/CLAIMED/FAILED reclaim.
+- [ ] Ручной E2E с реальным n8n + Telegram — **BLOCKED**: нет credentials/Docker.
+- [x] Проверка CRM при выключенном n8n: событие PENDING/RETRYING, ошибка в журнале, CRM работает.
+- [ ] Импорт draft workflow в реальный n8n — **BLOCKED**.
 
-### 6.2. Проверки этапа 4
+### 6.2. Проверки этапа 4 (фактические результаты)
 
-| Проверка                              | Критерий                                                                                   |
-| ------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Outbox transaction                    | Lead + AutomationEvent создаются вместе; при ошибке нет partial                            |
-| Dispatcher                            | max 10, lease 5 мин, повторный запуск не дублирует                                         |
-| HMAC outbound                         | n8n принимает валидную подпись, отклоняет невалидную/старую                                |
-| HMAC callback                         | BizPilot принимает валидную, отклоняет невалидную/старую                                   |
-| Idempotency                           | повторный webhook/callback не создаёт дубль Telegram/событие                               |
-| n8n dedupe                            | `INSERT ... ON CONFLICT DO NOTHING RETURNING`; без SELECT-then-INSERT                      |
-| Retry                                 | 1m/5m/30m, max 3 auto, 24h, 4xx terminal, 429 Retry-After                                  |
-| Manual retry                          | ADMIN/MANAGER, FAILED, <24h, same key; проверить сценарий после n8n FAILED (см. вопрос 14) |
-| n8n off                               | CRM работает; события PENDING; интеграция NOT_CONFIGURED/ERROR                             |
-| Telegram                              | ручной тест, сообщение с title/priority/category/summary/link                              |
-| CLAIMED >15m                          | не переотправляется; видно в status как manual reconciliation                              |
-| Typecheck/Lint/Unit/Integration/Build | PASS                                                                                       |
+| Проверка            | Критерий                                                                                  | Результат                                     |
+| ------------------- | ----------------------------------------------------------------------------------------- | --------------------------------------------- |
+| Outbox transaction  | Lead + AutomationEvent вместе; нет partial                                                | PASS (код + API smoke)                        |
+| Dispatcher          | max 10, lease 5 мин, без дублей                                                           | PASS (real PostgreSQL integration)            |
+| HMAC outbound       | n8n принимает/отклоняет                                                                   | PASS для подписи/тестов; реальный n8n BLOCKED |
+| HMAC callback       | BizPilot принимает/отклоняет                                                              | PASS (unit + API smoke)                       |
+| Idempotency         | повтор не создаёт дубль                                                                   | PASS (unit + real DB + API smoke)             |
+| n8n dedupe          | `DO NOTHING RETURNING`, без SELECT-then-INSERT                                            | PASS (real PostgreSQL)                        |
+| Retry               | 1m/5m/30m, max 3 auto, 24h, 4xx terminal, 429 Retry-After                                 | PASS (unit)                                   |
+| Manual retry        | ADMIN/MANAGER, FAILED, <24h, same key                                                     | PASS (unit + API + UI smoke)                  |
+| n8n off             | CRM работает, PENDING/ERROR                                                               | PASS (API smoke)                              |
+| Telegram            | сообщение с title/priority/category/summary/link                                          | **BLOCKED** (нет credentials)                 |
+| CLAIMED >15m        | не переотправляется, видно в status                                                       | PASS (unit + real DB)                         |
+| Typecheck           | 0 ошибок                                                                                  | PASS                                          |
+| Lint                | 0 ошибок                                                                                  | PASS (1 warning postcss)                      |
+| Unit                | все тесты                                                                                 | PASS (179 тестов, 18 файлов)                  |
+| Integration         | PostgreSQL                                                                                | PASS (19 тестов, 3 файла)                     |
+| Build               | production                                                                                | PASS (35 routes)                              |
+| API smoke           | login → lead → PENDING → callback → DELIVERED → duplicate → FAILED → retry → OPERATOR 403 | PASS                                          |
+| UI smoke            | `/settings`, журнал, retry, OPERATOR                                                      | PASS (Playwright)                             |
+| `pnpm audit --prod` | без high/critical                                                                         | **FAIL**: 6 advisories, см. SECURITY          |
+
+### 6.3. Блокеры этапа 4
+
+1. Нет реальных n8n и Telegram credentials (`N8N_WEBHOOK_URL`, secrets, bot token, chat_id).
+2. Docker не установлен; Compose-профиль `automation` и `n8n-db-init` runtime не проверены.
+3. n8n workflow — draft; импорт и активация в реальном n8n не выполнялись.
+4. PostgreSQL-роль `n8n_dedupe` создана только SQL-скриптом; runtime-проверка прав в Docker/локальном кластере не выполнена (нет superuser-доступа для создания роли).
 
 ## 7. Этап 5 — Проверка и упаковка
 
@@ -387,48 +407,59 @@
 
 ## 9. Журнал проверок
 
-| Дата       | Этап | Проверка             | Команда/метод                    | Результат                            |
-| ---------- | ---- | -------------------- | -------------------------------- | ------------------------------------ |
-| 2026-11-19 | 0    | Аудит директории     | `Get-ChildItem -Force`           | пусто, 0 элементов                   |
-| 2026-11-19 | 0    | Git                  | `git status`                     | не репозиторий                       |
-| 2026-11-19 | 0    | Node/pnpm/npm/Git    | version commands                 | 24.20.0 / 12.16.1 / 11.19.0 / 2.56.0 |
-| 2026-11-19 | 0    | Docker/Compose       | `docker --version`               | не установлен                        |
-| 2026-11-19 | 0    | PostgreSQL/WSL       | `psql`, services, `wsl --status` | отсутствуют                          |
-| 2026-11-19 | 0    | Версии npm           | `npm view`                       | зафиксированы в ARCHITECTURE         |
-| 2026-11-19 | 0    | Auth.js v5           | npm dist-tags + docs             | beta.32, stable v5 нет               |
-| 2026-11-19 | 0    | n8n 1.x EOL          | n8n blog/docs                    | EOL 2026-12-31, риск                 |
-| 2026-11-19 | 0    | Согласованность docs | ручная сверка с ТЗ 24.1–24.23    | PASS                                 |
-| 2026-11-19 | 2    | Typecheck            | `npx tsc --noEmit`               | PASS (0 ошибок)                      |
-| 2026-11-19 | 2    | Lint                 | `npx eslint .`                   | PASS (0 ошибок, 1 warning postcss)   |
-| 2026-11-19 | 2    | Unit                 | `npx vitest run tests/unit`      | PASS (22 теста)                      |
-| 2026-11-19 | 2    | Build                | `npx next build`                 | Компиляция PASS; EPERM symlink       |
-| 2026-11-19 | 2    | AI интеграция UI     | Страница `/ai-assistant`         | PASS (typecheck/lint/build)          |
-| 2026-11-19 | 2    | Login страница       | Страница `/login`                | PASS (typecheck)                     |
-| —          | 1–5  | Все проверки         | —                                | NOT RUN                              |
+| Дата       | Этап | Проверка             | Команда/метод                    | Результат                                  |
+| ---------- | ---- | -------------------- | -------------------------------- | ------------------------------------------ |
+| 2026-11-19 | 0    | Аудит директории     | `Get-ChildItem -Force`           | пусто, 0 элементов                         |
+| 2026-11-19 | 0    | Git                  | `git status`                     | не репозиторий                             |
+| 2026-11-19 | 0    | Node/pnpm/npm/Git    | version commands                 | 24.20.0 / 12.16.1 / 11.19.0 / 2.56.0       |
+| 2026-11-19 | 0    | Docker/Compose       | `docker --version`               | не установлен                              |
+| 2026-11-19 | 0    | PostgreSQL/WSL       | `psql`, services, `wsl --status` | отсутствуют                                |
+| 2026-11-19 | 0    | Версии npm           | `npm view`                       | зафиксированы в ARCHITECTURE               |
+| 2026-11-19 | 0    | Auth.js v5           | npm dist-tags + docs             | beta.32, stable v5 нет                     |
+| 2026-11-19 | 0    | n8n 1.x EOL          | n8n blog/docs                    | EOL 2026-12-31, риск                       |
+| 2026-11-19 | 0    | Согласованность docs | ручная сверка с ТЗ 24.1–24.23    | PASS                                       |
+| 2026-11-19 | 2    | Typecheck            | `npx tsc --noEmit`               | PASS (0 ошибок)                            |
+| 2026-11-19 | 2    | Lint                 | `npx eslint .`                   | PASS (0 ошибок, 1 warning postcss)         |
+| 2026-11-19 | 2    | Unit                 | `npx vitest run tests/unit`      | PASS (22 теста)                            |
+| 2026-11-19 | 2    | Build                | `npx next build`                 | Компиляция PASS; EPERM symlink             |
+| 2026-11-19 | 2    | AI интеграция UI     | Страница `/ai-assistant`         | PASS (typecheck/lint/build)                |
+| 2026-11-19 | 2    | Login страница       | Страница `/login`                | PASS (typecheck)                           |
+| 2026-11-19 | 4    | Typecheck            | `pnpm typecheck`                 | PASS (0 ошибок)                            |
+| 2026-11-19 | 4    | Lint                 | `pnpm lint`                      | PASS (0 ошибок, 1 warning postcss)         |
+| 2026-11-19 | 4    | Unit                 | `pnpm test:unit`                 | PASS (179 тестов, 18 файлов)               |
+| 2026-11-19 | 4    | Integration          | `pnpm test:integration`          | PASS (19 тестов, 3 файла, real PostgreSQL) |
+| 2026-11-19 | 4    | Build                | `pnpm build`                     | PASS (35 routes)                           |
+| 2026-11-19 | 4    | Migrations           | `pnpm prisma migrate deploy`     | PASS (3 миграции)                          |
+| 2026-11-19 | 4    | API smoke            | login → lead → callback → retry  | PASS (10 проверок)                         |
+| 2026-11-19 | 4    | UI smoke             | Playwright `/settings` + retry   | PASS                                       |
+| 2026-11-19 | 4    | Webhook script       | `pnpm test:webhook`              | PASS (HTTP 200, DELIVERED)                 |
+| 2026-11-19 | 4    | Audit                | `pnpm audit --prod`              | FAIL: 2 moderate, 4 high (см. SECURITY)    |
+| 2026-11-19 | 4    | n8n/Telegram runtime | реальный E2E                     | BLOCKED (нет credentials/Docker)           |
+| 2026-11-19 | 4    | Docker Compose       | `docker compose up`              | BLOCKED (Docker не установлен)             |
 
 ## 10. Открытые вопросы
 
-| №   | Вопрос                              | Варианты/рекомендация                                                                                                                             | Блокирует            | Владелец                |
-| --- | ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------- |
-| 1   | Docker/PostgreSQL отсутствуют       | Установить Docker Desktop + WSL2 (рекомендуется) или локальный PostgreSQL 16.16 + Docker Engine                                                   | Этап 1, 5            | Пользователь            |
-| 2   | n8n 1.x EOL 2026-12-31              | Остаться на 1.123.98 по ТЗ (риск EOL) или согласовать 2.x/3.x (проверить workflow/env)                                                            | Этап 4               | Пользователь            |
-| 3   | Auth.js v5 beta                     | Принять beta.32 по ТЗ или менять стек (вне MVP)                                                                                                   | Нет (зафиксировано)  | Пользователь/архитектор |
-| 4   | ContactStatus значения              | Предложено NEW/ACTIVE/INACTIVE                                                                                                                    | Этап 1 (низкий риск) | Пользователь            |
-| 5   | Lead.source значения                | Свободный текст                                                                                                                                   | Этап 1 (низкий риск) | Пользователь            |
-| 6   | Dashboard: New Leads, окно графика  | NEW; 14 дней; Pending = TODO+IN_PROGRESS                                                                                                          | Этап 2 (низкий риск) | Пользователь            |
-| 7   | apply-analysis endpoint             | Добавить `POST /api/leads/:id/apply-analysis`                                                                                                     | Этап 3               | Пользователь            |
-| 8   | Apply создаёт Contact/Task?         | Отдельные явные действия после apply; без авто-merge                                                                                              | Этап 3               | Пользователь            |
-| 9   | Session maxAge                      | 8 часов                                                                                                                                           | Этап 1 (низкий риск) | Пользователь            |
-| 10  | AI health shape                     | `{ status, configured }`, без provider/model                                                                                                      | Этап 3 (низкий риск) | Пользователь            |
-| 11  | AI provider/model/credentials       | OpenRouter + выбранная модель; нужны ключи                                                                                                        | Этап 3               | Пользователь            |
-| 12  | Telegram/n8n credentials            | Bot token, chat_id, secrets                                                                                                                       | Этап 4               | Пользователь            |
-| 13  | GitHub remote/CI secrets            | Нужны для публикации/CI                                                                                                                           | Этап 5               | Пользователь            |
-| 14  | n8n_processed FAILED + manual retry | 24.12 DO NOTHING не даёт повторно захватить FAILED; выбрать атомарный reclaim FAILED, ограничить retry pre-n8n ошибками или удалять FAILED (риск) | Этап 4               | Пользователь            |
-| 15  | Строгий граф статусов Lead/Task     | ТЗ не задаёт; MVP — только enum, AI не меняет status                                                                                              | Этап 2 (низкий риск) | Пользователь            |
+| №   | Вопрос                              | Варианты/рекомендация                                                                                                                                             | Блокирует            | Владелец                |
+| --- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------- | ----------------------- |
+| 1   | Docker/PostgreSQL                   | PostgreSQL 16 запущен локально и используется для миграций/тестов. Docker Desktop + WSL2 всё ещё нужны для Docker-приёмки и n8n-профиля                           | Этап 5, Docker       | Пользователь            |
+| 2   | n8n 1.x EOL 2026-12-31              | Остаться на 1.123.98 по ТЗ (риск EOL) или согласовать 2.x/3.x (проверить workflow/env)                                                                            | Этап 4               | Пользователь            |
+| 3   | Auth.js v5 beta                     | Принять beta.32 по ТЗ или менять стек (вне MVP)                                                                                                                   | Нет (зафиксировано)  | Пользователь/архитектор |
+| 4   | ContactStatus значения              | Предложено NEW/ACTIVE/INACTIVE                                                                                                                                    | Этап 1 (низкий риск) | Пользователь            |
+| 5   | Lead.source значения                | Свободный текст                                                                                                                                                   | Этап 1 (низкий риск) | Пользователь            |
+| 6   | Dashboard: New Leads, окно графика  | NEW; 14 дней; Pending = TODO+IN_PROGRESS                                                                                                                          | Этап 2 (низкий риск) | Пользователь            |
+| 7   | apply-analysis endpoint             | Добавить `POST /api/leads/:id/apply-analysis`                                                                                                                     | Этап 3               | Пользователь            |
+| 8   | Apply создаёт Contact/Task?         | Отдельные явные действия после apply; без авто-merge                                                                                                              | Этап 3               | Пользователь            |
+| 9   | Session maxAge                      | 8 часов                                                                                                                                                           | Этап 1 (низкий риск) | Пользователь            |
+| 10  | AI health shape                     | `{ status, configured }`, без provider/model                                                                                                                      | Этап 3 (низкий риск) | Пользователь            |
+| 11  | AI provider/model/credentials       | OpenRouter + выбранная модель; нужны ключи                                                                                                                        | Этап 3               | Пользователь            |
+| 12  | Telegram/n8n credentials            | Bot token, chat_id, `N8N_WEBHOOK_URL`, два разных HMAC-секрета; без них runtime BLOCKED                                                                           | Этап 4 (runtime)     | Пользователь            |
+| 13  | GitHub remote/CI secrets            | Нужны для публикации/CI                                                                                                                                           | Этап 5               | Пользователь            |
+| 14  | n8n_processed FAILED + manual retry | **РЕШЕНО:** основное `DO NOTHING`; после конфликта только `FAILED` атомарно reclaim-ится `UPDATE ... WHERE status='FAILED'`; `SENT`/`CLAIMED` не переотправляются | Этап 4 закрыт        | Реализовано             |
+| 15  | Строгий граф статусов Lead/Task     | ТЗ не задаёт; MVP — только enum, AI не меняет status                                                                                                              | Этап 2 (низкий риск) | Пользователь            |
 
 ## 11. Известные проблемы и риски
 
-1. Docker/PostgreSQL/WSL отсутствуют — блокер этапа 1 и acceptance.
+1. Docker Desktop/WSL2 отсутствуют — блокер Docker-приёмки и runtime n8n-профиля. Локальный PostgreSQL 16 работает.
 2. 8 GB RAM — возможна медленная работа Docker Desktop + n8n + Next build.
 3. n8n 1.x EOL 2026-12-31; baseline ТЗ конфликтует с актуальной линией 2.x/3.x.
 4. Auth.js v5 только beta; возможны регрессии.
@@ -437,36 +468,47 @@
 7. Глобальный pnpm 12.16.1; проект должен использовать 9.15.9 через Corepack.
 8. shadcn CLI 4.23.0 может тянуть Tailwind 4; компоненты вендорятся под Tailwind 3.
 9. Windows/PowerShell: скрипты должны быть cross-platform, без bash-измов.
-10. Git-репозиторий не инициализирован.
-11. Нет реальных AI/n8n/Telegram credentials; smoke/Telegram тесты будут выполнены только после их предоставления.
+10. Git-репозиторий инициализирован; remote/CI secrets отсутствуют.
+11. AI credentials предоставлены и проверены; n8n/Telegram credentials отсутствуют, поэтому Telegram E2E BLOCKED.
 12. Eventual-доставка outbox: без трафика приложения PENDING-события задерживаются.
 13. `SENT` без callback может зависнуть; reconciliation в MVP — ручная сверка/status.
 14. In-memory rate limit не работает между экземплярами.
 15. JWT без revocation; роль/Workspace перечитываются из БД, но сессия не отзывается.
 16. Hard delete; восстановление данных не предусмотрено.
 17. Multi-tenancy фактически отсутствует; Workspace scope — предпосылка для будущего.
-18. n8n_processed `FAILED` + manual retry: `ON CONFLICT DO NOTHING` не позволяет повторно захватить ключ; требуется решение до этапа 4 (см. вопрос 14).
-19. Строгий граф переходов Lead/Task status не задан; MVP валидирует enum, AI не меняет status (см. вопрос 15).
+18. n8n workflow — draft; импорт/активация в реальном n8n не выполнялись (runtime BLOCKED).
+19. `pnpm audit --prod` показывает 2 moderate + 4 high в транзитивных зависимостях (Next bundled postcss, deepmerge-ts, zod 3); обновление вне baseline требует согласования.
+20. n8n 1.x basic-auth env может игнорироваться owner-account; UI n8n нельзя публиковать без защиты.
+21. PostgreSQL-роль `n8n_dedupe` создана SQL-скриптом, но runtime-проверка прав не выполнена (Docker/superuser access).
+22. Строгий граф переходов Lead/Task status не задан; MVP валидирует enum, AI не меняет status (см. вопрос 15).
 
 ## 12. Следующий конкретный шаг
 
-Этап 2 UI выполнен. Следующие шаги (требуют подтверждения пользователя):
+Этап 4 реализован в коде и тестах. Для закрытия runtime-части нужны:
 
-1. **Решить блокеры этапа 1** — установить Docker Desktop + WSL2 или локальный PostgreSQL 16.16, чтобы запустить миграции, seed, integration-тесты и проверить CRM с БД.
-2. **Этап 3 (AI)** — реализовать `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `GET /api/ai/history`, AI сервис с OpenAI-compatible провайдером, Zod-валидацию ответа, retry, таймаут, историю попыток.
-3. **Этап 4 (Automation)** — n8n интеграция, HMAC, outbox, Telegram, retry.
-4. **Этап 5 (Проверка и упаковка)** — E2E тесты, CI, security review, финальная документация.
+1. **n8n + Telegram credentials**: `N8N_WEBHOOK_URL`, два разных HMAC-секрета,
+   bot token, chat_id. Без них Telegram E2E остаётся BLOCKED.
+2. **Docker Desktop + WSL2** (или доступ к VPS): проверить
+   `docker compose --profile automation up -d`, `n8n-db-init`, права
+   `n8n_dedupe`, импорт draft workflow и реальный Telegram.
+3. **Импорт workflow** `n8n/workflows/lead_created_notification.json` в n8n
+   1.123.98, настройка credentials и активация; после этого обновить статус
+   draft → verified.
+4. **Этап 5** — E2E, CI, security review, финальная документация; учесть
+   `pnpm audit` и решение по n8n 1.x EOL.
 
-**Не начинать этап 3 без явного подтверждения пользователя.**
+Этапы 1–4 не переделывать без необходимости; runtime-проверки выполнять после
+предоставления credentials/Docker.
 
 ## 13. Журнал изменений плана
 
-| Дата       | Изменение                                                                                                                                      |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 2026-11-19 | Создан план v1.0 по ТЗ v1.2; этап 0 DONE, этап 1 BLOCKED                                                                                       |
-| 2026-11-19 | Этап 3 AI завершён (бэкенд + 94 теста): analyze, apply-analysis, generate-reply, history, провайдеры, Zod, retry, таймаут, workspace isolation |
-| 2026-11-19 | Исправлены 15 критических дефектов; проверки на локальном PostgreSQL 16; Docker — BLOCKED                                                      |
-| 2026-11-19 | Подключён реальный AI: Yandex AI Studio, `aliceai-llm-flash`; `pnpm test:ai` и API-смоук PASS                                                  |
+| Дата       | Изменение                                                                                                                                          |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-11-19 | Создан план v1.0 по ТЗ v1.2; этап 0 DONE, этап 1 BLOCKED                                                                                           |
+| 2026-11-19 | Этап 3 AI завершён (бэкенд + 94 теста): analyze, apply-analysis, generate-reply, history, провайдеры, Zod, retry, таймаут, workspace isolation     |
+| 2026-11-19 | Исправлены 15 критических дефектов; проверки на локальном PostgreSQL 16; Docker — BLOCKED                                                          |
+| 2026-11-19 | Подключён реальный AI: Yandex AI Studio, `aliceai-llm-flash`; `pnpm test:ai` и API-смоук PASS                                                      |
+| 2026-11-19 | Этап 4 Automation: outbox/HMAC/dedupe/retry/API/Settings UI/draft n8n workflow; 179 unit, 19 integration, build PASS; runtime n8n/Telegram BLOCKED |
 
 ## 14. Исправление критических дефектов (2026-11-19)
 
@@ -515,8 +557,10 @@
 
 ### 14.3. Блокеры
 
-1. **Docker-приёмка** — на локальной Windows Docker не установлен (установка запрещена условиями), отдельный VPS недоступен.
-2. **Telegram/n8n E2E** — этап 4 не начат по решению пользователя.
+1. **Docker-приёмка** — на локальной Windows Docker не установлен; отдельный VPS недоступен.
+2. **Telegram/n8n runtime** — credentials не предоставлены; draft workflow не импортирован, Telegram E2E BLOCKED.
+3. **PostgreSQL-роль n8n_dedupe** — SQL подготовлен, runtime-проверка прав требует Docker/superuser.
+4. **`pnpm audit --prod`** — 2 moderate + 4 high в транзитивных зависимостях; обновление вне baseline требует согласования.
 
 ### 14.4. Реальный AI-провайдер (2026-11-19)
 

@@ -86,7 +86,10 @@ export type AIHistoryResult = {
 export class AIService {
   constructor(private readonly provider?: AIProvider) {}
 
-  async analyze(input: AnalyzeInput, user: SessionUser): Promise<{
+  async analyze(
+    input: AnalyzeInput,
+    user: SessionUser,
+  ): Promise<{
     analysis: AIAnalysisResult;
     rawResponse: AIAnalysisResponse;
     tokensInput: number | null;
@@ -386,8 +389,7 @@ export class AIService {
           : lead.leadScore
         : lead.leadScore;
 
-    const summary =
-      input.summary !== undefined ? input.summary ?? null : lead.summary;
+    const summary = input.summary !== undefined ? (input.summary ?? null) : lead.summary;
 
     const updated = await prisma.$transaction(async (tx) => {
       const leadUpdated = await tx.lead.update({
@@ -424,6 +426,10 @@ export class AIService {
       return leadUpdated;
     });
 
+    // If the notification has not left the outbox yet, enrich its payload with
+    // the applied AI result. A SENT/DELIVERED event is intentionally immutable.
+    await this.refreshPendingLeadEvent(user, leadId, updated);
+
     return {
       lead: {
         id: updated.id,
@@ -438,6 +444,61 @@ export class AIService {
         updatedAt: updated.updatedAt,
       },
     };
+  }
+
+  private async refreshPendingLeadEvent(
+    user: SessionUser,
+    leadId: string,
+    lead: {
+      priority: string;
+      category: string | null;
+      summary: string | null;
+    },
+  ): Promise<void> {
+    try {
+      const event = await prisma.automationEvent.findFirst({
+        where: {
+          workspaceId: user.workspaceId,
+          entityId: leadId,
+          eventType: "lead.created",
+          status: { in: ["PENDING", "RETRYING"] },
+          lockedAt: null,
+        },
+        select: { id: true, payload: true },
+      });
+
+      if (!event) {
+        return;
+      }
+
+      const currentPayload =
+        event.payload && typeof event.payload === "object" && !Array.isArray(event.payload)
+          ? (event.payload as Prisma.JsonObject)
+          : {};
+
+      await prisma.automationEvent.updateMany({
+        where: {
+          id: event.id,
+          workspaceId: user.workspaceId,
+          status: { in: ["PENDING", "RETRYING"] },
+          lockedAt: null,
+        },
+        data: {
+          payload: {
+            ...currentPayload,
+            priority: lead.priority,
+            category: lead.category,
+            summary: lead.summary,
+          } as unknown as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      // Enrichment is best-effort; the applied analysis must not fail because of it.
+      console.error("Failed to refresh pending automation event payload", {
+        leadId,
+        name: error instanceof Error ? error.name : "UnknownError",
+      });
+    }
   }
 
   async getHistory(
@@ -479,20 +540,35 @@ export class AIService {
       prisma.aIAnalysis.count({ where }),
     ]);
 
-    const items: AIHistoryItem[] = itemsRaw.map((row: { id: string; leadId: string; provider: string; model: string; status: string; resultJson: unknown; promptHash: string; tokensInput: number | null; tokensOutput: number | null; durationMs: number | null; errorMessage: string | null; createdAt: Date }) => ({
-      id: row.id,
-      leadId: row.leadId,
-      provider: row.provider,
-      model: row.model,
-      status: row.status,
-      resultJson: row.resultJson,
-      promptHash: row.promptHash,
-      tokensInput: row.tokensInput,
-      tokensOutput: row.tokensOutput,
-      durationMs: row.durationMs,
-      errorMessage: row.errorMessage,
-      createdAt: row.createdAt,
-    }));
+    const items: AIHistoryItem[] = itemsRaw.map(
+      (row: {
+        id: string;
+        leadId: string;
+        provider: string;
+        model: string;
+        status: string;
+        resultJson: unknown;
+        promptHash: string;
+        tokensInput: number | null;
+        tokensOutput: number | null;
+        durationMs: number | null;
+        errorMessage: string | null;
+        createdAt: Date;
+      }) => ({
+        id: row.id,
+        leadId: row.leadId,
+        provider: row.provider,
+        model: row.model,
+        status: row.status,
+        resultJson: row.resultJson,
+        promptHash: row.promptHash,
+        tokensInput: row.tokensInput,
+        tokensOutput: row.tokensOutput,
+        durationMs: row.durationMs,
+        errorMessage: row.errorMessage,
+        createdAt: row.createdAt,
+      }),
+    );
 
     return {
       items,

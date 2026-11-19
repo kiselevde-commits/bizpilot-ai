@@ -12,6 +12,10 @@ vi.mock("@/lib/database/prisma", () => ({
       findMany: vi.fn(),
       count: vi.fn(),
     },
+    automationEvent: {
+      findFirst: vi.fn(),
+      updateMany: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -60,8 +64,7 @@ describe("AIService Workspace Isolation (integration)", () => {
       service.analyze({ text: "Текст", leadId: leadIdA }, workspaceBUser),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    const findCall = (prisma.lead.findFirst as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0];
+    const findCall = (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(findCall.where.workspaceId).toBe("workspace-b");
   });
 
@@ -73,8 +76,7 @@ describe("AIService Workspace Isolation (integration)", () => {
       service.generateReply({ text: "Текст", leadId: leadIdA }, workspaceBUser),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    const findCall = (prisma.lead.findFirst as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0];
+    const findCall = (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(findCall.where.workspaceId).toBe("workspace-b");
   });
 
@@ -83,15 +85,10 @@ describe("AIService Workspace Isolation (integration)", () => {
     (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(null);
 
     await expect(
-      service.applyAnalysis(
-        leadIdA,
-        { priority: "HIGH" } as never,
-        workspaceBUser,
-      ),
+      service.applyAnalysis(leadIdA, { priority: "HIGH" } as never, workspaceBUser),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
 
-    const findCall = (prisma.lead.findFirst as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0];
+    const findCall = (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(findCall.where.workspaceId).toBe("workspace-b");
   });
 
@@ -103,8 +100,8 @@ describe("AIService Workspace Isolation (integration)", () => {
 
     await service.getHistory(workspaceBUser, { page: 1, limit: 20 });
 
-    const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0].where;
+    const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>).mock.calls[0]![0]
+      .where;
     expect(whereArg.lead.workspaceId).toBe("workspace-b");
     expect(whereArg.lead.workspaceId).not.toBe("workspace-a");
   });
@@ -118,8 +115,7 @@ describe("AIService Workspace Isolation (integration)", () => {
 
     await service.analyze({ text: "Текст", leadId: leadIdA }, adminUser);
 
-    const createCall = (prisma.aIAnalysis.create as ReturnType<typeof vi.fn>)
-      .mock.calls[0]![0];
+    const createCall = (prisma.aIAnalysis.create as ReturnType<typeof vi.fn>).mock.calls[0]![0];
     expect(createCall.data.lead.connect.id).toBe(leadIdA);
   });
 });
