@@ -21,6 +21,8 @@ export default auth((request) => {
 });
 
 export const config = {
+  // `.*\\..*` (escaped dot) skips files with extensions such as /favicon.ico,
+  // while application routes like /dashboard still require a session.
   matcher: [
     "/((?!api/auth|api/webhooks|api/ai/health|_next/static|_next/image|favicon.ico|login|.*\\..*).*)",
   ],
