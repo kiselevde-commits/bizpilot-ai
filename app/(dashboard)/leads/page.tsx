@@ -19,6 +19,7 @@ import { Card } from "@/components/ui/card";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Alert } from "@/components/ui/alert";
 import Link from "next/link";
 
 export default async function LeadsPage({
@@ -315,16 +316,3 @@ function EmptyState({
   );
 }
 
-function Alert({ variant, children }: { variant?: string; children: React.ReactNode }) {
-  return (
-    <div
-      className={`rounded-lg border p-4 ${
-        variant === "destructive"
-          ? "border-destructive bg-destructive/10 text-destructive"
-          : "border-muted bg-background"
-      }`}
-    >
-      {children}
-    </div>
-  );
-}
