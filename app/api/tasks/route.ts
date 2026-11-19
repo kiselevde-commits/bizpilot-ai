@@ -71,7 +71,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       return jsonError("VALIDATION_ERROR", "Некорректные параметры запроса", 400);
     }
 
-    const result = await listTasks(user, parsed.data);
+    const result = await listTasks(user, { ...query, ...parsed.data });
 
     return jsonSuccess(result);
   } catch (error) {
