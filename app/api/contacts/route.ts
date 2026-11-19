@@ -78,10 +78,18 @@ export async function POST(request: NextRequest): Promise<Response> {
     const user = await requireUser();
 
     assertJsonContentType(request);
-    await readJsonBody(request, CONTACT_BODY_LIMIT);
+    const rawBody = await readJsonBody(request, CONTACT_BODY_LIMIT);
+    validateContactBody(rawBody);
 
-    const body = await request.json();
-    validateContactBody(body);
+    const body = rawBody as {
+      name: string;
+      company?: string | null;
+      email?: string | null;
+      phone?: string | null;
+      notes?: string | null;
+      status?: string;
+      force?: boolean;
+    };
 
     const result = await createContact(user, {
       name: String(body.name).trim(),

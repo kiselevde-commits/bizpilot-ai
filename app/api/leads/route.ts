@@ -91,10 +91,21 @@ export async function POST(request: NextRequest): Promise<Response> {
     const user = await requireUser();
 
     assertJsonContentType(request);
-    await readJsonBody(request, LEAD_BODY_LIMIT);
+    const rawBody = await readJsonBody(request, LEAD_BODY_LIMIT);
+    validateLeadBody(rawBody);
 
-    const body = await request.json();
-    validateLeadBody(body);
+    const body = rawBody as {
+      title: string;
+      message: string;
+      source?: string | null;
+      status?: string;
+      priority?: string;
+      category?: string | null;
+      intent?: string | null;
+      customerType?: string | null;
+      contactId?: string | null;
+      assignedToId?: string | null;
+    };
 
     const lead = await createLead(user, {
       title: String(body.title).trim(),

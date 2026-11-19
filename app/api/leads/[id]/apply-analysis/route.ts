@@ -35,11 +35,9 @@ export async function POST(
     const { id } = await params;
 
     assertJsonContentType(request);
-    await readJsonBody(request, AI_BODY_LIMIT);
+    const rawBody = await readJsonBody(request, AI_BODY_LIMIT);
 
-    const body = await request.json();
-
-    const parsed = ApplyAnalysisBodySchema.safeParse(body);
+    const parsed = ApplyAnalysisBodySchema.safeParse(rawBody);
 
     if (!parsed.success) {
       return NextResponse.json(

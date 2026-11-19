@@ -70,10 +70,17 @@ export async function PATCH(
     const { id } = await params;
 
     assertJsonContentType(request);
-    await readJsonBody(request, CONTACT_BODY_LIMIT);
+    const rawBody = await readJsonBody(request, CONTACT_BODY_LIMIT);
+    validateContactUpdateBody(rawBody);
 
-    const body = await request.json();
-    validateContactUpdateBody(body);
+    const body = rawBody as Partial<{
+      name: string;
+      company: string | null;
+      email: string | null;
+      phone: string | null;
+      notes: string | null;
+      status: string;
+    }>;
 
     const input: ContactUpdateInput = {};
 

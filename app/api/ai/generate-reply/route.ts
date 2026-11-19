@@ -20,11 +20,9 @@ export async function POST(request: NextRequest): Promise<Response> {
     const user = await requireUser();
 
     assertJsonContentType(request);
-    await readJsonBody(request, AI_BODY_LIMIT);
+    const rawBody = await readJsonBody(request, AI_BODY_LIMIT);
 
-    const body = await request.json();
-
-    const parsed = GenerateReplyBodySchema.safeParse(body);
+    const parsed = GenerateReplyBodySchema.safeParse(rawBody);
 
     if (!parsed.success) {
       return NextResponse.json(

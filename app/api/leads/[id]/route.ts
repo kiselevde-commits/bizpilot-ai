@@ -78,10 +78,21 @@ export async function PATCH(
     const { id } = await params;
 
     assertJsonContentType(request);
-    await readJsonBody(request, LEAD_BODY_LIMIT);
+    const rawBody = await readJsonBody(request, LEAD_BODY_LIMIT);
+    validateLeadUpdateBody(rawBody);
 
-    const body = await request.json();
-    validateLeadUpdateBody(body);
+    const body = rawBody as Partial<{
+      title: string;
+      message: string;
+      source: string | null;
+      status: string;
+      priority: string;
+      category: string | null;
+      intent: string | null;
+      customerType: string | null;
+      contactId: string | null;
+      assignedToId: string | null;
+    }>;
 
     const input: LeadUpdateInput = {};
 

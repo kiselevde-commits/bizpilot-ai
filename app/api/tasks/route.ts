@@ -85,10 +85,19 @@ export async function POST(request: NextRequest): Promise<Response> {
     const user = await requireUser();
 
     assertJsonContentType(request);
-    await readJsonBody(request, TASK_BODY_LIMIT);
+    const rawBody = await readJsonBody(request, TASK_BODY_LIMIT);
+    validateTaskBody(rawBody);
 
-    const body = await request.json();
-    validateTaskBody(body);
+    const body = rawBody as {
+      title: string;
+      description?: string | null;
+      status?: string;
+      priority?: string;
+      dueDate?: string | null;
+      assignedToId?: string | null;
+      leadId?: string | null;
+      contactId?: string | null;
+    };
 
     const task = await createTask(user, {
       title: String(body.title).trim(),
