@@ -34,9 +34,10 @@ Compose-лимиты: postgres 512 MB, app 1 GB, n8n 512 MB.
 - `AUTH_SECRET` — секрет Auth.js (минимум 32 символа).
 - `SEED_ADMIN_PASSWORD` — пароль для всех трёх демо-пользователей (обязателен, без значения по умолчанию).
 
-AI (по умолчанию mock; только для разработки/тестов):
-- `AI_PROVIDER=mock` / `ALLOW_MOCK_AI=true`
+AI (реальный провайдер по умолчанию; mock — только при явном разрешении):
+- `AI_PROVIDER=openai-compatible`; `ALLOW_MOCK_AI=false`
 - `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, `AI_TIMEOUT_MS=60000`
+- `AI_PROVIDER=mock` допускается только вместе с `ALLOW_MOCK_AI=true` для разработки/тестов.
 
 n8n / Telegram (этап 4; пустые до настройки):
 - `N8N_WEBHOOK_URL`, `N8N_WEBHOOK_SECRET`, `N8N_CALLBACK_SECRET`
@@ -56,7 +57,7 @@ docker compose up -d --build
 docker compose down
 ```
 
-Миграции применяются сервисом `migrate` (`prisma migrate deploy`) перед запуском `app`.
+Миграции и seed выполняются сервисом `migrate` (`prisma migrate deploy` + `prisma db seed`) перед запуском `app`; повторный seed не создаёт дублей.
 
 ## Миграции и seed
 

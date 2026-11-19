@@ -23,7 +23,7 @@ services:
 
   migrate:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile
       target: builder
     depends_on:
@@ -32,23 +32,31 @@ services:
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       SHADOW_DATABASE_URL: ${SHADOW_DATABASE_URL:?SHADOW_DATABASE_URL is required}
-    command: ["sh", "-c", "pnpm exec prisma migrate deploy && echo 'migrate done'"]
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
+    command:
+      ["sh", "-c", "pnpm exec prisma migrate deploy && pnpm exec prisma db seed"]
 
   app:
     build:
-      context: ..
+      context: .
       dockerfile: docker/Dockerfile
     depends_on:
       migrate:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      AUTH_URL: http://localhost:3000
+      SHADOW_DATABASE_URL: ${SHADOW_DATABASE_URL:?SHADOW_DATABASE_URL is required}
+      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET is required}
+      AUTH_URL: ${AUTH_URL:-http://localhost:3000}
       AUTH_TRUST_HOST: "true"
-      APP_BASE_URL: http://localhost:3000
-      AI_PROVIDER: mock
-      ALLOW_MOCK_AI: "true"
-      AI_TIMEOUT_MS: "60000"
+      APP_BASE_URL: ${APP_BASE_URL:-http://localhost:3000}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?SEED_ADMIN_PASSWORD is required}
+      AI_PROVIDER: ${AI_PROVIDER:-openai-compatible}
+      ALLOW_MOCK_AI: ${ALLOW_MOCK_AI:-false}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-60000}
     ports:
       - "127.0.0.1:3000:3000"
     mem_limit: 1024m
@@ -56,7 +64,13 @@ services:
     shm_size: 256m
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/ai/health || exit 1"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/ai/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 5
