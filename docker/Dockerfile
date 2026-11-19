@@ -10,6 +10,7 @@ WORKDIR /app
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder
+ENV SHADOW_DATABASE_URL=postgresql://placeholder:placeholder@localhost:5432/placeholder_shadow
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate && pnpm exec prisma generate
 RUN pnpm exec next build
 

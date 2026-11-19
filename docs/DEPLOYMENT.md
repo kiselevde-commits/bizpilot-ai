@@ -30,6 +30,7 @@ Compose-лимиты: postgres 512 MB, app 1 GB, n8n 512 MB.
 
 Обязательные:
 - `DATABASE_URL` — строка подключения PostgreSQL.
+- `SHADOW_DATABASE_URL` — отдельная пустая база для Prisma shadow database (`prisma migrate dev`). В Docker она создаётся скриптом `docker/postgres/init/01-create-shadow.sql` при первой инициализации тома; для локального PostgreSQL создайте `bizpilot_shadow` вручную.
 - `AUTH_SECRET` — секрет Auth.js (минимум 32 символа).
 - `SEED_ADMIN_PASSWORD` — пароль для всех трёх демо-пользователей (обязателен, без значения по умолчанию).
 
