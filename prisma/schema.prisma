@@ -1,0 +1,312 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  MANAGER
+  OPERATOR
+}
+
+enum LeadStatus {
+  NEW
+  ANALYZING
+  QUALIFIED
+  IN_PROGRESS
+  WAITING
+  CONVERTED
+  REJECTED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum LeadCategory {
+  business_automation
+  crm_integration
+  ai_bot
+  document_flow
+  web_app
+  other
+}
+
+enum LeadIntent {
+  request
+  question
+  complaint
+  info
+  other
+}
+
+enum CustomerType {
+  b2b
+  b2c
+  b2g
+  unknown
+}
+
+enum ContactStatus {
+  NEW
+  ACTIVE
+  INACTIVE
+}
+
+enum AIAnalysisStatus {
+  SUCCESS
+  FAILED
+}
+
+enum IntegrationType {
+  n8n
+  telegram
+}
+
+enum IntegrationStatus {
+  NOT_CONFIGURED
+  ACTIVE
+  ERROR
+}
+
+enum AutomationEventStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+  RETRYING
+}
+
+model Workspace {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users            User[]
+  contacts         Contact[]
+  leads            Lead[]
+  tasks            Task[]
+  activityLogs     ActivityLog[]
+  integrations     Integration[]
+  automationEvents AutomationEvent[]
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String
+  passwordHash String
+  role         Role
+  workspaceId  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  createdLeads    Lead[]        @relation("LeadCreatedBy")
+  updatedLeads    Lead[]        @relation("LeadUpdatedBy")
+  assignedLeads   Lead[]        @relation("LeadAssignedTo")
+  createdContacts Contact[]     @relation("ContactCreatedBy")
+  updatedContacts Contact[]     @relation("ContactUpdatedBy")
+  createdTasks    Task[]        @relation("TaskCreatedBy")
+  updatedTasks    Task[]        @relation("TaskUpdatedBy")
+  assignedTasks   Task[]        @relation("TaskAssignedTo")
+  activityLogs    ActivityLog[]
+
+  @@unique([workspaceId, email])
+  @@index([email])
+  @@index([workspaceId])
+}
+
+model Contact {
+  id              String        @id @default(uuid())
+  name            String
+  company         String?
+  email           String?
+  phone           String?
+  emailNormalized String?
+  phoneNormalized String?
+  notes           String?
+  status          ContactStatus @default(NEW)
+  workspaceId     String
+  createdById     String
+  updatedById     String
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  createdBy User      @relation("ContactCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy User      @relation("ContactUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  leads Lead[]
+  tasks Task[]
+
+  @@index([workspaceId, emailNormalized])
+  @@index([workspaceId, phoneNormalized])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, status])
+  @@index([workspaceId, name])
+}
+
+model Lead {
+  id             String        @id @default(uuid())
+  title          String
+  message        String        @db.Text
+  source         String?
+  status         LeadStatus    @default(NEW)
+  priority       Priority      @default(MEDIUM)
+  category       LeadCategory?
+  intent         LeadIntent?
+  customerType   CustomerType?
+  summary        String?
+  leadScore      Int?
+  scoreBreakdown Json?
+  contactId      String?
+  assignedToId   String?
+  workspaceId    String
+  createdById    String
+  updatedById    String
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  assignedTo User?     @relation("LeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy  User      @relation("LeadCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy  User      @relation("LeadUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  analyses AIAnalysis[]
+  tasks    Task[]
+
+  @@index([workspaceId, status, priority, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, contactId])
+  @@index([workspaceId, assignedToId])
+  @@index([workspaceId, leadScore])
+}
+
+model Task {
+  id           String     @id @default(uuid())
+  title        String
+  description  String?
+  status       TaskStatus @default(TODO)
+  priority     Priority   @default(MEDIUM)
+  dueDate      DateTime?
+  assignedToId String?
+  leadId       String?
+  contactId    String?
+  workspaceId  String
+  createdById  String
+  updatedById  String
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  workspace  Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  assignedTo User?     @relation("TaskAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  contact    Contact?  @relation(fields: [contactId], references: [id], onDelete: Restrict)
+  createdBy  User      @relation("TaskCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  updatedBy  User      @relation("TaskUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, status, dueDate])
+  @@index([workspaceId, assignedToId])
+  @@index([workspaceId, leadId])
+  @@index([workspaceId, contactId])
+  @@index([workspaceId, createdAt])
+}
+
+model AIAnalysis {
+  id           String           @id @default(uuid())
+  leadId       String
+  provider     String
+  model        String
+  status       AIAnalysisStatus
+  resultJson   Json?
+  promptHash   String
+  tokensInput  Int?
+  tokensOutput Int?
+  durationMs   Int?
+  errorMessage String?
+  createdAt    DateTime         @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+  @@index([status, createdAt])
+}
+
+model ActivityLog {
+  id          String   @id @default(uuid())
+  workspaceId String
+  entityType  String
+  entityId    String
+  action      String
+  actorId     String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  actor     User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, entityType, entityId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([actorId])
+}
+
+model Integration {
+  id             String            @id @default(uuid())
+  workspaceId    String
+  type           IntegrationType
+  name           String
+  status         IntegrationStatus @default(NOT_CONFIGURED)
+  configMetadata Json?
+  lastCheckedAt  DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, type])
+  @@index([workspaceId, status])
+}
+
+model AutomationEvent {
+  id              String                @id @default(uuid())
+  workspaceId     String
+  eventType       String
+  entityId        String
+  payload         Json
+  status          AutomationEventStatus @default(PENDING)
+  idempotencyKey  String                @unique
+  externalEventId String?
+  attempts        Int                   @default(0)
+  lastError       String?
+  nextRetryAt     DateTime?
+  lockedAt        DateTime?
+  lockToken       String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@index([status, nextRetryAt, lockedAt])
+  @@index([workspaceId, createdAt])
+  @@index([externalEventId])
+}

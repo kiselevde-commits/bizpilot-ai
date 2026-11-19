@@ -1,0 +1,51 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+
+# production
+build/
+dist/
+
+# testing
+coverage/
+playwright-report/
+test-results/
+blob-report/
+.vitest/
+
+# environment
+.env
+.env.docker
+.env.local
+.env.*.local
+!.env.example
+!.env.docker.example
+
+# logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# editors
+.idea/
+.vscode/
+*.swp
+
+# prisma
+prisma/*.db
+prisma/*.db-journal
+
+# misc
+*.tsbuildinfo
