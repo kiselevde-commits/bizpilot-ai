@@ -436,6 +436,15 @@ async function main() {
   for (let i = 0; i < contacts.length; i++) {
     const c = contacts[i]!;
     const creator = creatorByIndex(i);
+    const existing = await prisma.contact.findFirst({
+      where: { workspaceId: workspace.id, name: c.name },
+      select: { id: true },
+    });
+
+    if (existing) {
+      continue;
+    }
+
     await prisma.contact.create({
       data: {
         name: c.name,
@@ -460,6 +469,15 @@ async function main() {
     const l = leads[i]!;
     const creator = creatorByIndex(i);
     const contactId = i < createdContacts.length ? createdContacts[i]!.id : undefined;
+    const existing = await prisma.lead.findFirst({
+      where: { workspaceId: workspace.id, title: l.title },
+      select: { id: true },
+    });
+
+    if (existing) {
+      continue;
+    }
+
     await prisma.lead.create({
       data: {
         title: l.title,
@@ -489,6 +507,15 @@ async function main() {
     const t = tasks[i]!;
     const creator = creatorByIndex(i);
     const leadId = i < createdLeads.length ? createdLeads[i]!.id : undefined;
+    const existing = await prisma.task.findFirst({
+      where: { workspaceId: workspace.id, title: t.title },
+      select: { id: true },
+    });
+
+    if (existing) {
+      continue;
+    }
+
     await prisma.task.create({
       data: {
         title: t.title,
