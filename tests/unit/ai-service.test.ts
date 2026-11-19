@@ -325,7 +325,7 @@ describe("AIService.getHistory", () => {
 
     const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
       .mock.calls[0]![0].where;
-    expect(whereArg.workspaceId).toBe("workspace-1");
+    expect(whereArg.lead.workspaceId).toBe("workspace-1");
   });
 
   it("фильтрует по leadId если передан", async () => {
@@ -342,7 +342,8 @@ describe("AIService.getHistory", () => {
 
     const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
       .mock.calls[0]![0].where;
-    expect(whereArg.leadId).toBe(mockLeadId);
+    expect(whereArg.lead.id).toBe(mockLeadId);
+    expect(whereArg.lead.workspaceId).toBe("workspace-1");
   });
 
   it("пагинация: page минимум 1, limit максимум 100", async () => {

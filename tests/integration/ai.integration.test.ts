@@ -105,8 +105,8 @@ describe("AIService Workspace Isolation (integration)", () => {
 
     const whereArg = (prisma.aIAnalysis.findMany as ReturnType<typeof vi.fn>)
       .mock.calls[0]![0].where;
-    expect(whereArg.workspaceId).toBe("workspace-b");
-    expect(whereArg.workspaceId).not.toBe("workspace-a");
+    expect(whereArg.lead.workspaceId).toBe("workspace-b");
+    expect(whereArg.lead.workspaceId).not.toBe("workspace-a");
   });
 
   it("saveAnalysis: запись привязана к лиду своего workspace", async () => {

@@ -446,13 +446,12 @@ export class AIService {
     const limit = Math.min(100, Math.max(1, query.limit ?? 20));
     const skip = (page - 1) * limit;
 
-    const where: { workspaceId: string; leadId?: string } = {
-      workspaceId: user.workspaceId,
+    const where: Prisma.AIAnalysisWhereInput = {
+      lead: {
+        workspaceId: user.workspaceId,
+        ...(query.leadId ? { id: query.leadId } : {}),
+      },
     };
-
-    if (query.leadId) {
-      where.leadId = query.leadId;
-    }
 
     const [itemsRaw, total] = await Promise.all([
       prisma.aIAnalysis.findMany({
