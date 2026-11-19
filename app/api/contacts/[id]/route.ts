@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, requireRole } from "@/lib/auth/session";
+import { DELETE_ROLES } from "@/lib/auth/roles";
 import {
   getContact,
   updateContact,
@@ -107,6 +108,7 @@ export async function DELETE(
 ): Promise<Response> {
   try {
     const user = await requireUser();
+    requireRole(user, DELETE_ROLES);
     const { id } = await params;
 
     await deleteContact(user, id);
