@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/session";
 import { AIService } from "@/services/ai.service";
-import { buildAIProvider } from "@/lib/ai/provider";
 import { handleApiError } from "@/lib/api/handle-error";
 import { z } from "zod";
 
@@ -35,17 +34,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       );
     }
 
-    const aiService = new AIService(
-      buildAIProvider(
-        {
-          baseUrl: process.env.AI_BASE_URL ?? "",
-          apiKey: process.env.AI_API_KEY ?? "",
-          model: process.env.AI_MODEL ?? "",
-          timeoutMs: Number(process.env.AI_TIMEOUT_MS ?? 60000),
-        },
-        process.env.AI_PROVIDER === "mock" && process.env.ALLOW_MOCK_AI === "true",
-      ),
-    );
+    const aiService = new AIService();
 
     const result = await aiService.getHistory(user, {
       page: parsed.data.page,

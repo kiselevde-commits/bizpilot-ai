@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/auth/session";
-import { buildAIProvider } from "@/lib/ai/provider";
 import { AIService } from "@/services/ai.service";
 import { assertJsonContentType, readJsonBody } from "@/lib/api/body-limit";
 import { handleApiError } from "@/lib/api/handle-error";
@@ -52,17 +51,7 @@ export async function POST(
       );
     }
 
-    const aiService = new AIService(
-      buildAIProvider(
-        {
-          baseUrl: process.env.AI_BASE_URL ?? "",
-          apiKey: process.env.AI_API_KEY ?? "",
-          model: process.env.AI_MODEL ?? "",
-          timeoutMs: Number(process.env.AI_TIMEOUT_MS ?? 60000),
-        },
-        process.env.AI_PROVIDER === "mock" && process.env.ALLOW_MOCK_AI === "true",
-      ),
-    );
+    const aiService = new AIService();
 
     const result = await aiService.applyAnalysis(id, {
       summary: parsed.data.summary ?? null,

@@ -439,3 +439,66 @@ describe("AIService error handling (integration)", () => {
     expect(analyze).toHaveBeenCalledTimes(2);
   });
 });
+describe("AIService without AI provider", () => {
+  const lead = {
+    id: mockLeadId,
+    title: "Заявка",
+    status: "NEW" as const,
+    priority: "MEDIUM" as const,
+    category: null,
+    intent: null,
+    customerType: null,
+    summary: null,
+    leadScore: null,
+    workspaceId: "workspace-1",
+    createdById: "user-1",
+    updatedById: "user-1",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+
+  it("applyAnalysis does not require a provider", async () => {
+    const service = new AIService();
+    (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue(lead);
+
+    const txUpdate = vi.fn().mockResolvedValue({ ...lead, updatedAt: new Date() });
+    const txCreate = vi.fn().mockResolvedValue({});
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Prisma mock type is complex; any is acceptable for test double
+    (prisma.$transaction as any).mockImplementation(async (callback: any) => {
+      const tx = { lead: { update: txUpdate }, activityLog: { create: txCreate } };
+      return callback(tx);
+    });
+
+    const result = await service.applyAnalysis(
+      mockLeadId,
+      {
+        summary: "Резюме по заявке",
+        leadScore: 85,
+        category: "crm_integration",
+        intent: "request",
+        customerType: "b2b",
+        priority: "HIGH",
+      },
+      mockUser,
+    );
+    expect(result.lead.id).toBe(lead.id);
+  });
+
+  it("getHistory does not require a provider", async () => {
+    const service = new AIService();
+    vi.spyOn(prisma.aIAnalysis, "findMany").mockResolvedValue([]);
+    vi.spyOn(prisma.aIAnalysis, "count").mockResolvedValue(0);
+
+    const result = await service.getHistory(mockUser, { page: 1, limit: 20 });
+    expect(result.pagination.total).toBe(0);
+  });
+
+  it("analyze without a provider fails with AI_NOT_CONFIGURED", async () => {
+    const service = new AIService();
+    (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({ id: mockLeadId });
+
+    await expect(
+      service.analyze({ text: "Текст", leadId: mockLeadId }, mockUser),
+    ).rejects.toMatchObject({ code: "AI_NOT_CONFIGURED" });
+  });
+});

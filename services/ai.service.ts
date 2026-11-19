@@ -84,7 +84,7 @@ export type AIHistoryResult = {
 };
 
 export class AIService {
-  constructor(private readonly provider: AIProvider) {}
+  constructor(private readonly provider?: AIProvider) {}
 
   async analyze(input: AnalyzeInput, user: SessionUser): Promise<{
     analysis: AIAnalysisResult;
@@ -118,6 +118,7 @@ export class AIService {
     const wrapped = wrapUserInput(input.text);
     const fullPrompt = `${systemPrompt}\n${wrapped}`;
     const promptHash = computePromptHash(fullPrompt);
+    const provider = this.requireProvider();
 
     let lastError: unknown = null;
 
@@ -125,7 +126,7 @@ export class AIService {
       const start = Date.now();
 
       try {
-        const providerResult = await this.provider.analyze({
+        const providerResult = await provider.analyze({
           text: wrapped,
           systemPrompt,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
@@ -149,7 +150,7 @@ export class AIService {
         await this.saveAnalysis({
           user,
           leadId: input.leadId,
-          provider: this.provider.name,
+          provider: provider.name,
           model: this.getModel(),
           status: "SUCCESS",
           resultJson: parsed,
@@ -166,7 +167,7 @@ export class AIService {
           tokensInput: providerResult.tokensInput ?? null,
           tokensOutput: providerResult.tokensOutput ?? null,
           durationMs,
-          provider: this.provider.name,
+          provider: provider.name,
           model: this.getModel(),
         };
       } catch (error) {
@@ -237,6 +238,7 @@ export class AIService {
     const wrapped = wrapUserInput(input.text);
     const fullPrompt = `${systemPrompt}\n${wrapped}`;
     const promptHash = computePromptHash(fullPrompt);
+    const provider = this.requireProvider();
 
     let lastError: unknown = null;
 
@@ -244,7 +246,7 @@ export class AIService {
       const start = Date.now();
 
       try {
-        const providerResult = await this.provider.generateReply({
+        const providerResult = await provider.generateReply({
           text: wrapped,
           systemPrompt,
           maxOutputTokens: MAX_OUTPUT_TOKENS,
@@ -268,7 +270,7 @@ export class AIService {
         await this.saveAnalysis({
           user,
           leadId: input.leadId,
-          provider: this.provider.name,
+          provider: provider.name,
           model: this.getModel(),
           status: "SUCCESS",
           resultJson: parsed,
@@ -284,7 +286,7 @@ export class AIService {
           tokensInput: providerResult.tokensInput ?? null,
           tokensOutput: providerResult.tokensOutput ?? null,
           durationMs,
-          provider: this.provider.name,
+          provider: provider.name,
           model: this.getModel(),
         };
       } catch (error) {
@@ -503,8 +505,16 @@ export class AIService {
     };
   }
 
+  private requireProvider(): AIProvider {
+    if (!this.provider) {
+      throw new AppError("AI_NOT_CONFIGURED", "AI provider is not configured");
+    }
+
+    return this.provider;
+  }
+
   private getModel(): string {
-    return this.provider.name;
+    return this.provider?.name ?? "unknown";
   }
 
   private isRetryableProviderError(error: unknown): boolean {
