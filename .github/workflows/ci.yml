@@ -1,0 +1,197 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "24.20.0"
+  PNPM_VERSION: "9.15.9"
+  DATABASE_URL: "postgresql://bizpilot:bizpilot_ci_password@localhost:5432/bizpilot?schema=public"
+  SHADOW_DATABASE_URL: "postgresql://bizpilot:bizpilot_ci_password@localhost:5432/bizpilot_shadow?schema=public"
+  AUTH_SECRET: "ci_only_auth_secret_at_least_32_chars"
+  AUTH_URL: "http://localhost:3000"
+  AUTH_TRUST_HOST: "true"
+  APP_BASE_URL: "http://localhost:3000"
+  SEED_ADMIN_PASSWORD: "ci_only_seed_password"
+  AI_PROVIDER: "mock"
+  ALLOW_MOCK_AI: "true"
+  AI_TIMEOUT_MS: "60000"
+  N8N_WEBHOOK_URL: ""
+  N8N_WEBHOOK_SECRET: ""
+  N8N_CALLBACK_SECRET: ""
+  N8N_TIMEOUT_MS: "10000"
+  TELEGRAM_BOT_TOKEN: ""
+  TELEGRAM_CHAT_ID: ""
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm typecheck
+
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm test:unit
+
+  integration:
+    name: Integration tests (PostgreSQL)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.16-alpine
+        env:
+          POSTGRES_USER: bizpilot
+          POSTGRES_PASSWORD: bizpilot_ci_password
+          POSTGRES_DB: bizpilot
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U bizpilot -d bizpilot"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - name: Apply migrations
+        run: pnpm exec prisma migrate deploy
+      - run: pnpm test:integration
+
+  build:
+    name: Production build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma generate
+      - run: pnpm build
+
+  docker:
+    name: Docker Compose smoke
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, unit]
+    env:
+      # Compose interpolates required n8n variables even for the base profile;
+      # these are CI-only dummies and the automation profile is not started.
+      N8N_WEBHOOK_SECRET: bizpilot_ci_webhook_secret
+      N8N_CALLBACK_SECRET: bizpilot_ci_callback_secret
+      TELEGRAM_CHAT_ID: bizpilot_ci_chat
+      # Shell env wins over --env-file, so point the containers at the compose
+      # service name instead of the runner's localhost.
+      DATABASE_URL: postgresql://bizpilot:bizpilot_ci_password@postgres:5432/bizpilot?schema=public
+      SHADOW_DATABASE_URL: postgresql://bizpilot:bizpilot_ci_password@postgres:5432/bizpilot_shadow?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare CI env file
+        run: |
+          cat > .env.docker <<EOF
+          POSTGRES_USER=bizpilot
+          POSTGRES_PASSWORD=bizpilot_ci_password
+          POSTGRES_DB=bizpilot
+          DATABASE_URL=postgresql://bizpilot:bizpilot_ci_password@postgres:5432/bizpilot?schema=public
+          SHADOW_DATABASE_URL=postgresql://bizpilot:bizpilot_ci_password@postgres:5432/bizpilot_shadow?schema=public
+          AUTH_SECRET=ci_only_auth_secret_at_least_32_chars
+          AUTH_URL=http://localhost:3000
+          AUTH_TRUST_HOST=true
+          APP_BASE_URL=http://localhost:3000
+          SEED_ADMIN_PASSWORD=ci_only_seed_password
+          AI_PROVIDER=mock
+          ALLOW_MOCK_AI=true
+          AI_BASE_URL=
+          AI_API_KEY=
+          AI_MODEL=
+          AI_TIMEOUT_MS=60000
+          N8N_WEBHOOK_URL=
+          N8N_WEBHOOK_SECRET=bizpilot_ci_webhook_secret
+          N8N_CALLBACK_SECRET=bizpilot_ci_callback_secret
+          N8N_TIMEOUT_MS=10000
+          TELEGRAM_BOT_TOKEN=
+          TELEGRAM_CHAT_ID=bizpilot_ci_chat
+          N8N_DB_PASSWORD=bizpilot_ci_n8n_db_password
+          N8N_DEDUPE_DB_PASSWORD=bizpilot_ci_dedupe_password
+          N8N_ENCRYPTION_KEY=$(openssl rand -hex 32)
+          N8N_BASIC_AUTH_USER=bizpilot_ci
+          N8N_BASIC_AUTH_PASSWORD=bizpilot_ci_n8n_password
+          EOF
+      - name: Validate compose configuration
+        run: docker compose --env-file .env.docker config --quiet
+      - name: Build images
+        run: docker compose --env-file .env.docker build
+      - name: Start app + PostgreSQL (base profile only, no n8n)
+        run: docker compose --env-file .env.docker up -d
+      - name: Wait for application health
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://localhost:3000/api/ai/health; then
+              echo ""
+              echo "Application is healthy"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Application did not become healthy" >&2
+          exit 1
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose --env-file .env.docker logs --no-color
+      - name: Stop and remove containers
+        if: always()
+        run: docker compose --env-file .env.docker down -v
