@@ -4,6 +4,11 @@
 
 Развёртывание через Docker Compose (PostgreSQL + приложение). n8n запускается отдельно под профилем `automation` (этап 4). CRM работает без n8n.
 
+**Текущий статус:** конфигурация Compose, Dockerfile и healthchecks проверены
+статически; локальный runtime **BLOCKED** — Docker в текущем окружении не
+установлен. Сборка и запуск app + PostgreSQL проверяются в CI job `docker`
+(`.github/workflows/ci.yml`); сам workflow на момент этапа 5 ещё не запускался.
+
 ## Требования
 
 - Docker Desktop + WSL2 (Windows) или Docker Engine (Linux).
@@ -100,6 +105,32 @@ Seed создаёт: 1 Workspace, 3 пользователя (ADMIN/MANAGER/OPER
 - `GET /api/ai/health` — публичный, возвращает `{ status: "ok", configured }`; используется Docker healthcheck.
 - n8n — `GET /healthz` на `127.0.0.1:5678`.
 - Postgres: `pg_isready -U bizpilot -d bizpilot`.
+
+## CI и Docker
+
+- `.github/workflows/ci.yml` — push/PR: `lint`, `typecheck`, `unit`,
+  `integration` (PostgreSQL service + `migrate deploy`), `build`, `docker`.
+- `.github/workflows/e2e.yml` — `workflow_dispatch`: PostgreSQL, migrations,
+  seed, Playwright Chromium, artifacts; AI принудительно mock.
+- Job `docker` создаёт временный `.env.docker` с тестовыми значениями,
+  выполняет `docker compose config`, `build`, `up -d`, ждёт
+  `http://localhost:3000/api/ai/health`, затем `down -v`. Секреты в workflow
+  не используются; n8n-профиль в этом job не запускается.
+
+Локальная проверка (когда Docker доступен):
+
+```bash
+cp .env.docker.example .env.docker
+# заполните CHANGE_ME; для локальной проверки без реального AI:
+# AI_PROVIDER=mock, ALLOW_MOCK_AI=true
+docker compose --env-file .env.docker config
+docker compose --env-file .env.docker up -d --build
+curl -fsS http://localhost:3000/api/ai/health
+docker compose --env-file .env.docker logs app
+docker compose --env-file .env.docker down
+```
+
+Не используйте `down -v`, если хотите сохранить локальные данные.
 
 ## Ограничения
 

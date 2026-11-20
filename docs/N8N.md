@@ -6,6 +6,11 @@
 `n8n/workflows/lead_created_notification.json` является **draft для импорта**, а не
 подтверждённым экспортом работающего workflow.
 
+**Этап 5 (2026-11-20):** JSON workflow статически валидируется unit-тестом
+(`tests/unit/n8n-workflow-draft.test.ts`), секреты в нём отсутствуют; импорт,
+активация и реальная доставка не выполнялись. Docker Compose с профилем
+`automation` локально не запускался (Docker отсутствует).
+
 Документ описывает outbox, HMAC, дедупликацию, retry, настройку n8n/Telegram,
 диагностику и ограничения.
 

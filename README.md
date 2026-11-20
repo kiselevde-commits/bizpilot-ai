@@ -9,11 +9,18 @@
 3. AI извлекает контактные данные только при их наличии в исходном тексте.
 4. AI формирует резюме, недостающую информацию, рекомендуемое действие и черновик ответа.
 5. Пользователь проверяет и подтверждает применение результата.
-6. В CRM создаётся или связывается контакт, при необходимости создаётся задача.
-7. Через n8n отправляется уведомление в Telegram.
-8. Повторные вызовы не создают дублей.
+6. Пользователь отдельными действиями связывает контакт и создаёт задачу.
+7. При настроенном n8n отправляется уведомление в Telegram; CRM работает и без n8n.
+8. Повторные вызовы и callback не создают дублей.
 
 Это рабочий продукт, а не кликабельный макет. Запрещены фиктивные кнопки, статические AI-ответы в рабочем режиме и имитация интеграций.
+
+## Статус этапа 5
+
+- CRM-сценарии, AI-анализ с реальным провайдером, mock-E2E, unit/integration-тесты и production build проверены локально.
+- GitHub Actions: `ci.yml` (lint, typecheck, unit, integration, build, Docker Compose smoke) и `e2e.yml` (`workflow_dispatch`, PostgreSQL, seed, Playwright, artifacts, mock AI).
+- Реальный n8n + Telegram runtime и локальный Docker Compose остаются **BLOCKED** (нет credentials/Docker в текущем окружении). Docker проверяется в CI job `docker`.
+- Демонстрационный сценарий: `docs/DEMO.md`.
 
 ## Стек
 
@@ -47,7 +54,7 @@ prisma/            # schema.prisma, миграции, seed
 n8n/workflows/     # draft lead_created_notification.json для импорта
 docker/            # Dockerfile, postgres init, n8n init-db.sql, WSL2 hints
 tests/             # unit, integration, e2e
-docs/              # ARCHITECTURE, IMPLEMENTATION_PLAN, API, SECURITY, DEPLOYMENT, N8N
+docs/              # ARCHITECTURE, IMPLEMENTATION_PLAN, API, SECURITY, DEPLOYMENT, N8N, DEMO
 scripts/           # test-ai, test-webhook
 ```
 
@@ -93,6 +100,8 @@ docker compose up -d --build
 
 Compose читает `AUTH_SECRET`, `SEED_ADMIN_PASSWORD`, `AI_*` и строки подключения из env-файла. Для Docker используйте `.env.docker.example` → `.env.docker` и запускайте `docker compose --env-file .env.docker up -d --build`. Сервис `migrate` применяет миграции и выполняет idempotent seed до старта `app`; healthcheck использует `node -e fetch(...)`, потому что `wget` в slim-образе отсутствует.
 
+**Локальный runtime Docker:** в текущем окружении Docker не установлен, поэтому Compose здесь **не запускался**. Конфигурация и сборка проверяются в CI job `docker` workflow `ci.yml`. Подробно — `docs/DEPLOYMENT.md`.
+
 n8n запускается отдельно под профилем `automation`:
 
 ```bash
@@ -115,7 +124,7 @@ docker compose --env-file .env.docker --profile automation up -d
 
 Пароль не хранится в репозитории и не имеет значения по умолчанию. Он берётся из переменной `SEED_ADMIN_PASSWORD` в вашем `.env` (при Docker — в env-файле, переданном Compose). Если значение неизвестно, задайте новое в `.env` и выполните `pnpm prisma:seed`: seed обновляет пароль демо-пользователей при повторном запуске.
 
-Демо-данные: 1 Workspace, 10 контактов, 20 заявок (`[DEMO]`), 15 задач, 2 интеграции (NOT_CONFIGURED). Повторный seed не создаёт дублей.
+Демо-данные: 1 Workspace, 3 пользователя, 10 контактов, 20 заявок, 15 задач, 2 интеграции (NOT_CONFIGURED). Все заявки и задачи имеют префикс `[DEMO]`, Dashboard показывает баннер `Demo data`. Повторный seed не создаёт дублей и обновляет заголовки старых demo-записей до формата `[DEMO]`. Без `SEED_ADMIN_PASSWORD` seed завершается ошибкой.
 
 ## AI-провайдер
 
@@ -138,7 +147,7 @@ AI_TIMEOUT_MS=60000
 pnpm test:ai
 ```
 
-Скрипт отказывается работать при `AI_PROVIDER=mock` или `ALLOW_MOCK_AI=true`, проверяет реальный HTTP-запрос, JSON, Zod-валидацию, category/intent/priority/leadScore, summary, draft_reply, timeout и ошибку провайдера. Ключи не выводятся.
+Скрипт отказывается работать при `AI_PROVIDER=mock` или `ALLOW_MOCK_AI=true`, проверяет реальный HTTP-запрос, JSON, Zod-валидацию, category/intent/priority/leadScore, summary, `extractedContacts` (значения должны присутствовать в исходном тексте), draft_reply, timeout и ошибку провайдера. Ключи не выводятся.
 
 ## Автоматизация n8n + Telegram
 
@@ -181,19 +190,35 @@ Docker. Файл `n8n/workflows/lead_created_notification.json` — **draft дл
 
 ## Тесты
 
+Фактические результаты на 2026-11-20 (локальный PostgreSQL 16):
+
+| Проверка           | Команда                  | Результат                        |
+| ------------------ | ------------------------ | -------------------------------- |
+| Typecheck          | `pnpm typecheck`         | PASS, 0 ошибок                   |
+| Lint               | `pnpm lint`              | PASS, 0 ошибок (1 warning postcss) |
+| Unit               | `pnpm test:unit`         | PASS, 199 тестов / 20 файлов     |
+| Integration        | `pnpm test:integration`  | PASS, 24 теста / 4 файла         |
+| E2E                | `pnpm test:e2e`          | PASS, 8 сценариев (Chromium)     |
+| Production build   | `pnpm build`             | PASS                             |
+| Реальный AI smoke  | `pnpm test:ai`           | PASS (Yandex AI Studio)          |
+
 ```bash
 pnpm test:unit      # Vitest unit-тесты
 pnpm test:integration
-pnpm test:e2e       # Playwright
-pnpm test:ai        # ручной smoke с реальным provider (скрипт scripts/test-ai.ts)
+pnpm test:e2e       # Playwright; по умолчанию принудительно mock AI
+pnpm test:ai        # ручной smoke с реальным provider (scripts/test-ai.ts)
 pnpm test:webhook   # ручной подписанный callback n8n (scripts/test-webhook.ts)
 pnpm typecheck
 pnpm lint
 pnpm build
-pnpm format:check
+pnpm format:check   # repo-wide форматирование (исторически не проходит; не критерий приёмки)
 ```
 
+`pnpm test:e2e` поднимает dev-сервер и по умолчанию выставляет `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`; реальный LLM в E2E не вызывается. Осознанный запуск с реальным провайдером: `E2E_REAL_AI=true pnpm test:e2e`.
+
 `pnpm build` собирает обычный production bundle. Standalone-сборка для Docker включается переменной `NEXT_OUTPUT_STANDALONE=true` (задана в `docker/Dockerfile`), чтобы локальная сборка на Windows не падала на symlink-операциях.
+
+CI: `.github/workflows/ci.yml` (push/PR) и `.github/workflows/e2e.yml` (`workflow_dispatch`). Оба используют PostgreSQL service, `pnpm install --frozen-lockfile`, mock AI и загружают отчёты Playwright.
 
 ## Ограничения MVP
 
@@ -204,7 +229,7 @@ pnpm format:check
 - Реальный n8n + Telegram runtime не проверен (нет credentials/Docker); workflow — draft для импорта.
 - n8n 1.x EOL 2026-12-31; возможен переход на 2.x/3.x только после согласования.
 - Outbox — eventual delivery; `SENT` без callback требует ручной сверки; нет exactly-once для Telegram.
-- `pnpm audit --prod` показывает 2 moderate + 4 high в транзитивных зависимостях; обновления вне baseline требуют согласования (см. `docs/SECURITY.md`).
+- `pnpm audit --prod`: остаются **2 high** в транзитивных зависимостях (`zod@3`, `deepmerge-ts`); совместимые patch/minor исправления `postcss` и `effect` применены через pnpm overrides. Обновление zod/deepmerge-ts требует major и согласования (см. `docs/SECURITY.md`).
 - `AI_PROVIDER=mock` допустим только в разработке/тестах (`ALLOW_MOCK_AI=true`); в production запрещён.
 - Auth.js v5 только в точной beta-версии `5.0.0-beta.32`.
 - POST `/api/webhooks/lead-created` отсутствует; только `POST /api/webhooks/n8n`.
@@ -217,6 +242,7 @@ pnpm format:check
 - `docs/SECURITY.md` — модель угроз, проверки, результаты.
 - `docs/DEPLOYMENT.md` — развёртывание, ENV, миграции, seed.
 - `docs/N8N.md` — n8n workflow, HMAC, дедупликация, Telegram.
+- `docs/DEMO.md` — сценарий демонстрации на 3–5 минут.
 - `AGENTS.md` — правила для AI-агентов и разработчиков.
 
 ## Примечание об Auth.js v5

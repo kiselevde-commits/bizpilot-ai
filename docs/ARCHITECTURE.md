@@ -1,8 +1,8 @@
 # Архитектура BizPilot AI
 
-**Версия документа:** 1.1 (этап 4)  
-**Дата:** 2026-11-19  
-**Статус:** этапы 1–4 реализованы в коде и тестах; реальный n8n/Telegram runtime — BLOCKED (нет credentials и Docker)  
+**Версия документа:** 1.2 (этап 5)  
+**Дата:** 2026-11-20  
+**Статус:** этапы 1–5 реализованы и проверены локально; реальный n8n/Telegram runtime и локальный Docker — BLOCKED (нет credentials/Docker)  
 **Источник требований:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24.
 
 ## 1. Назначение и границы MVP
@@ -858,13 +858,13 @@ Settings: read-only profile, automation status, integrations status, журна�
 
 ### 13.2. Security review (этап 5)
 
-В `docs/SECURITY.md` будет таблица `Проверка | Команда/метод | Результат | Замечания | Статус`:
+В `docs/SECURITY.md` заполнена таблица `Проверка | Команда/метод | Результат | Замечания | Статус`:
 
-- `pnpm audit --prod`;
-- secret scan (не обычный grep) по исходникам и Git;
-- OWASP-oriented ручной проход: IDOR/BOLA, SQLi, XSS, CSRF, auth bypass, rate-limit bypass, secret exposure, error handling;
-- `.env` в `.gitignore`, отсутствие секретов в `.env.example`;
-- перечень непроверенных пунктов и причин.
+- `pnpm audit --prod` — 2 high (`zod@3`, `deepmerge-ts@7`); `postcss`/`effect` исправлены overrides;
+- secret scan gitleaks по исходникам и всей Git-истории — 0 находок;
+- OWASP-oriented проход: IDOR/BOLA (integration-тесты), SQLi, XSS, CSRF, auth bypass, role bypass, rate-limit bypass, HMAC/replay, secret exposure, error handling;
+- `.env` в `.gitignore`, примеры без секретов;
+- перечень непроверенных runtime-пунктов (Docker, n8n, Telegram) и причин.
 
 Не отмечать PASS, если проверка не выполнялась.
 
@@ -984,10 +984,15 @@ pnpm prisma db seed
 
 ### 15.3. E2E (Playwright)
 
-1. Login → Leads → создать заявку → проверить в списке → открыть карточку.
-2. Открыть заявку → запустить AI-анализ (mock adapter) → проверить summary/priority/lead score/history.
+1. Login → Dashboard → создать Lead → найти в списке → связать Contact → создать Task.
+2. Заявка → AI-анализ (mock provider) → summary/priority/score/history → явное применение.
+3. Auth/role guards: redirect без сессии, API 401, OPERATOR DELETE/automation 403.
+4. Responsive UI: Dashboard/Leads/CRM/Tasks/AI/Settings на 1440/1280/768/375 без горизонтального overflow и ошибок консоли.
 
-E2E использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`, production build, seed. Отчёт/artifacts сохраняются.
+E2E поднимает dev-сервер и использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`;
+реальный provider не вызывается (только при явном `E2E_REAL_AI=true`). Отчёт и
+artifacts сохраняются в CI. Production build проверяется отдельно командой
+`pnpm build`.
 
 ### 15.4. Реальный AI smoke
 
@@ -999,9 +1004,12 @@ E2E использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`, production b
 
 ### 15.6. CI
 
-`.github/workflows/ci.yml` (push/pull_request): jobs `lint`, `typecheck`, `unit`, `integration` (Postgres service + migrations), `build`; pnpm frozen lockfile.
+`.github/workflows/ci.yml` (push/pull_request): jobs `lint`, `typecheck`, `unit`, `integration` (Postgres service + `migrate deploy`), `build`, `docker` (Compose config/build/up + health, base profile); pnpm frozen lockfile.
 
-`.github/workflows/e2e.yml` (`workflow_dispatch`): Postgres, migrations, seed, app, Playwright, upload report/artifacts; mock AI.
+`.github/workflows/e2e.yml` (`workflow_dispatch`): Postgres, migrations, seed, Playwright Chromium, upload report/artifacts; mock AI.
+
+CI не вызывает реальный LLM. Docker job использует временный `.env.docker` с
+тестовыми значениями; n8n-профиль в CI не запускается.
 
 ## 16. Observability и логирование
 
@@ -1018,9 +1026,10 @@ E2E использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`, production b
 
 ### 17.1. Блокеры окружения
 
-1. **Docker и Docker Compose не установлены.** `docker` отсутствует в PATH; Docker Desktop не найден. WSL не установлен. Без Docker нельзя выполнить acceptance-проверки Compose, integration/E2E с PostgreSQL. Варианты: установить Docker Desktop + WSL2 (рекомендуется) или локальный PostgreSQL 16 + отдельная установка Docker CLI/Engine. Требуется решение пользователя.
-2. **PostgreSQL отсутствует.** Нет `psql`, службы PostgreSQL и локального сервера. Нужен Docker или локальная установка PostgreSQL 16.16.
+1. **Docker и Docker Compose не установлены локально.** `docker` отсутствует в PATH; Docker Desktop/WSL2 не установлены. Compose runtime локально не проверен; проверка добавлена в CI job `docker`. Требуется решение пользователя для локальной Docker-приёмки.
+2. **Локальный PostgreSQL 16 работает** и используется для миграций, seed, API, integration- и E2E-проверок. `psql` в PATH может отсутствовать, но сервер доступен по `DATABASE_URL`.
 3. **8 GB RAM.** Docker Desktop + PostgreSQL + n8n + Next build могут быть медленными; риск таймаутов, не блокер.
+4. **`pnpm audit --prod`:** 2 high остаются (`zod@3`, транзитивный `deepmerge-ts`); исправления требуют major-обновлений и согласования. `postcss` и `effect` исправлены overrides.
 
 ### 17.2. Риски версий
 

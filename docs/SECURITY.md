@@ -1,8 +1,9 @@
 # Безопасность BizPilot AI
 
-**Версия:** этап 4 (2026-11-19).  
-**Статус:** обязательные механизмы реализованы; часть runtime-проверок
-(**n8n, Telegram, PostgreSQL-роль n8n_dedupe, Docker**) остаётся **BLOCKED**.
+**Версия:** этап 5 (2026-11-20).  
+**Статус:** обязательные механизмы реализованы и проверены (typecheck, lint,
+unit, integration, E2E, build, реальный AI smoke, secret scan). Runtime-проверки
+**n8n, Telegram, PostgreSQL-роль n8n_dedupe и Docker** остаются **BLOCKED**.
 Таблица ниже фиксирует только фактически выполненные проверки.
 
 ## 1. Модель безопасности
@@ -140,36 +141,32 @@ SELECT
 
 Ожидаемо: `true, true, true, false, false`.
 
-## 8. Результаты проверок
+## 8. Результаты проверок (2026-11-20)
 
-| Проверка                         | Метод                            | Результат   | Замечания                                                         |
-| -------------------------------- | -------------------------------- | ----------- | ----------------------------------------------------------------- |
-| Typecheck                        | `pnpm typecheck`                 | PASS        | 0 ошибок                                                          |
-| Lint                             | `pnpm lint`                      | PASS        | 0 errors, 1 warning `postcss.config.mjs`                          |
-| Unit                             | `pnpm test:unit`                 | PASS        | см. `docs/IMPLEMENTATION_PLAN.md`                                 |
-| Integration                      | `pnpm test:integration`          | PASS        | реальный PostgreSQL; outbox claim/lease и `n8n_processed`         |
-| HMAC: valid/invalid              | unit `tests/unit/hmac.test.ts`   | PASS        | raw body, wrong secret, malformed signature                       |
-| Timestamp: valid/expired/future  | unit `tests/unit/hmac.test.ts`   | PASS        | ±5 минут, boundaries                                              |
-| Raw body integrity               | unit HMAC + route test           | PASS        | изменение тела → 401                                              |
-| Replay/duplicate callback        | unit service + route + API smoke | PASS        | duplicate без повторного Telegram                                 |
-| Идемпотентность `n8n_processed`  | real PostgreSQL integration      | PASS        | 4 конкурентных INSERT → ровно 1                                   |
-| Конкурентный захват outbox       | real PostgreSQL integration      | PASS        | `FOR UPDATE SKIP LOCKED`, без дублей                              |
-| Lease и истечение lease          | real PostgreSQL integration      | PASS        | активный lease не захватывается, просроченный — захватывается     |
-| Retry 1/5/30 минут               | unit                             | PASS        | 60s/300s/1800s                                                    |
-| Ограничение 24 часа              | unit + real DB                   | PASS        | без HTTP-вызова → FAILED                                          |
-| HTTP 429/4xx/5xx                 | unit dispatcher                  | PASS        | 429 Retry-After, 4xx terminal, 5xx retry                          |
-| Права ADMIN/MANAGER/OPERATOR     | unit + API smoke + UI smoke      | PASS        | OPERATOR 403 и скрытый раздел                                     |
-| CLAIMED старше 15 минут          | unit + real DB + status          | PASS        | staleClaims; auto-resend запрещён                                 |
-| Ошибка Telegram/callback failed  | unit + API smoke                 | PASS        | событие FAILED, безопасный текст                                  |
-| Callback secret = webhook secret | unit config                      | PASS        | отклоняется (callback не настроен)                                |
-| Body limit webhook               | unit route                       | PASS        | 413 `PAYLOAD_TOO_LARGE`                                           |
-| Origin на retry                  | API smoke/UI smoke               | PASS        | без Origin → 403 (общий guard)                                    |
-| Секреты в workflow JSON          | ручной grep                      | PASS        | токенов/паролей/HMAC нет                                          |
-| `.env` не в Git                  | `git ls-files`                   | PASS        | отслеживаются только `.env.example`, `.env.docker.example`        |
-| `pnpm audit --prod`              | audit                            | **FAIL**    | 6 advisories в транзитивных зависимостях; см. раздел 9            |
-| PostgreSQL-роль `n8n_dedupe`     | Docker/psql runtime              | **BLOCKED** | SQL подготовлен; Docker/суперпользователь локально не запускались |
-| Реальный n8n + Telegram          | manual E2E                       | **BLOCKED** | нет n8n/Telegram credentials                                      |
-| Docker Compose                   | `docker compose up`              | **BLOCKED** | Docker не установлен                                              |
+| Проверка                     | Команда/метод                                                | Результат              | Замечания                                                                                     | Статус  |
+| ---------------------------- | ------------------------------------------------------------ | ---------------------- | --------------------------------------------------------------------------------------------- | ------- |
+| Typecheck                    | `pnpm typecheck`                                             | 0 ошибок               | strict + noUncheckedIndexedAccess                                                             | PASS    |
+| Lint                         | `pnpm lint`                                                  | 0 ошибок, 1 warning    | warning в `postcss.config.mjs` (pre-existing)                                                 | PASS    |
+| Unit                         | `pnpm test:unit`                                             | 199 тестов / 20 файлов | включая AI schema/prompt/contacts, HMAC, roles, origin, rate limit                            | PASS    |
+| Integration                  | `pnpm test:integration`                                      | 24 теста / 4 файла     | реальный PostgreSQL; два повторных прогона подряд                                             | PASS    |
+| E2E                          | `pnpm test:e2e`                                              | 8 сценариев            | auth, CRM, AI (mock), responsive UI; Chromium                                                 | PASS    |
+| Production build             | `pnpm build`                                                 | успешно                | 35 routes                                                                                     | PASS    |
+| Реальный AI smoke            | `pnpm test:ai`                                               | HTTP 200, Zod PASS     | Yandex AI Studio; `extractedContacts` сверены с текстом                                      | PASS    |
+| `pnpm audit --prod`          | `pnpm audit --prod`                                          | 2 high                 | `zod@3.25.76`, `deepmerge-ts@7.1.5`; см. раздел 9                                             | FAIL    |
+| Secret scan (исходники + вся Git-история) | `gitleaks detect --source . --redact`; `gitleaks detect --no-git` | 0 находок              | gitleaks 8.30.1; 31 коммит + рабочее дерево (кроме `.env`/deps)                              | PASS    |
+| `.gitignore` и env examples  | `git ls-files`, `git check-ignore`                           | `.env` не отслеживается | в Git только `.env.example` и `.env.docker.example` с `CHANGE_ME`                            | PASS    |
+| IDOR/BOLA и Workspace scope  | `tests/integration/workspace-isolation.integration.test.ts`  | 5 тестов               | A не читает/не перечисляет/не меняет/не удаляет записи B; API использует `requireUser`        | PASS    |
+| SQL injection                | статический поиск + integration                              | нет unsafe-вызовов     | нет `$queryRawUnsafe`/`$executeRawUnsafe`; raw SQL только tagged template                      | PASS    |
+| XSS                          | статический поиск                                            | нет опасных sink       | нет `dangerouslySetInnerHTML`/`innerHTML`; React экранирует; CSP не настроен                  | PASS    |
+| CSRF и Same-Origin           | unit `origin.test.ts`, E2E mutations                         | отклоняет чужой/пустой Origin | Auth.js CSRF + `assertSameOrigin` на cookie-auth mutations                              | PASS    |
+| Authentication bypass        | E2E: `/leads` → `/login`, `GET /api/leads` → 401             | 401/redirect           | middleware + повторная проверка в Route Handler/сервисе                                      | PASS    |
+| Role bypass                  | unit `roles.test.ts`, E2E OPERATOR                           | 403                    | OPERATOR DELETE lead → 403, automation events → 403, раздел скрыт                             | PASS    |
+| Rate-limit bypass            | unit `api-guards.test.ts`                                    | блокирует сверх лимита | 429 + Retry-After; in-memory на процесс                                                       | PASS    |
+| HMAC и replay                | unit HMAC/route + PostgreSQL integration                     | PASS                   | raw bytes, ±5 мин, constant-time, `n8n_processed` dedupe; реальный n8n не проверен           | PASS    |
+| Утечки секретов в ошибках/логах | code review + E2E console                                   | чисто                  | логируют id/name/attempt, без prompt, raw response, email/phone, URL и токенов                 | PASS    |
+| Docker Compose runtime       | `docker compose ... up`                                      | не выполнялся          | Docker отсутствует локально; CI job `docker` добавлен, но ещё не запускался                    | BLOCKED |
+| PostgreSQL-роль `n8n_dedupe` | Docker/psql runtime                                          | не выполнялась         | SQL подготовлен; нужен Docker/superuser                                                       | BLOCKED |
+| Реальный n8n + Telegram      | manual E2E                                                   | не выполнялся          | нет n8n/Telegram credentials; workflow — draft                                                | BLOCKED |
 
 ### 8.1. API smoke (локальный PostgreSQL)
 
@@ -198,26 +195,41 @@ SELECT
 
 ## 9. `pnpm audit --prod` (фактический результат)
 
-Команда завершилась с exit code 1: **2 moderate, 4 high**.
+Команда завершилась с exit code 1: **2 high, 0 critical, 0 moderate**.
 
-| Пакет                         | Путь                                       | Advisory                                                                           | Оценка                                                                                                  |
-| ----------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| postcss ≤8.5.11/8.5.17/8.5.22 | `next@15.5.29 > postcss@8.4.31`            | GHSA-6g55-p6wh-862q, GHSA-r28c-9q8g-f849, GHSA-qx2v-qp2m-jg93, GHSA-fxqj-rqcc-2cmp | bundled зависимость Next; приложение не обрабатывает пользовательский CSS/source maps                   |
-| deepmerge-ts <8.0.0           | `@prisma/client > prisma > @prisma/config` | GHSA-ggr8-5vv4-36mx                                                                | CLI/config path, не request path                                                                        |
-| zod <4.6.6                    | `zod@3.25.76`                              | GHSA-mrhx-c7xc-m3w5                                                                | Zod 3 зафиксирован ТЗ; входы ограничены body limit и `.max()`; обновление до Zod 4 требует согласования |
+Совместимые исправления (patch/minor) применены через `pnpm.overrides` в
+`package.json`:
 
-Обновление версий вне baseline не выполнялось: это требует отдельного
-согласования (AGENTS.md §2). Риски зафиксированы, а не скрыты.
+| Пакет   | Было   | Стало  | Причина                                   |
+| ------- | ------ | ------ | ----------------------------------------- |
+| effect  | 3.21.0 | 3.22.1 | ReDoS в `Schema.TemplateLiteral` (GHSA-7589-6fvf-x4pw), patch в 3.22.1 |
+| postcss | 8.4.31 | 8.5.33 | 4 advisory (XSS/sourceMappingURL), исправлены в 8.5.x |
+
+После overrides build, `prisma generate`, unit/integration и E2E проверены
+повторно.
+
+Оставшиеся advisories:
+
+| Пакет        | Путь                                       | Advisory                                      | Оценка                                                                                                  |
+| ------------ | ------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| zod 3.25.76  | `zod@3.25.76`                              | GHSA-mrhx-c7xc-m3w5                           | Patched только `>=4.6.6` (major). Zod 3 зафиксирован baseline; входы ограничены body limit и `.max()`, произвольные regex из пользовательских данных не компилируются. Обновление до Zod 4 требует согласования. |
+| deepmerge-ts | `@prisma/client > prisma > @prisma/config` | GHSA-ggr8-5vv4-36mx                           | Patched только `>=8.0.0` (major). Используется Prisma CLI/config при generate/migrate, не в request path. |
+
+`effect` и `postcss` больше не появляются в audit. Оставшиеся два риска
+зафиксированы, а не скрыты; major-обновления без согласования не выполнялись.
+
 
 ## 10. Что осталось проверить (BLOCKED)
 
 1. Создать роли `n8n_app`/`n8n_dedupe` в реальном PostgreSQL и проверить
-   `has_table_privilege`.
+   `has_table_privilege` (нужен Docker/superuser).
 2. Импортировать draft workflow в n8n 1.123.98, настроить credentials и
    выполнить реальный Telegram E2E.
-3. Проверить `pnpm audit` после согласованного обновления зависимостей.
-4. Полный security review CRUD/AI endpoints (вне stage 4) с реальными
-   integration-тестами.
+3. Запустить CI job `docker` (Compose config/build/up + health) на GitHub
+   Actions: локально Docker отсутствует, workflow ещё не выполнялся.
+4. После согласования major-обновлений `zod` 4 и `deepmerge-ts` 8 повторить
+   `pnpm audit --prod` и регрессионные тесты.
+
 
 ## 11. Ротация секретов и инциденты
 

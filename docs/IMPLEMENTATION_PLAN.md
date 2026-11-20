@@ -1,9 +1,9 @@
 # План реализации BizPilot AI
 
-**Версия:** 1.4 (этап 4 — автоматизация; AI-контур: 2026-11-20)  
+**Версия:** 1.5 (этап 5 — финальная проверка и упаковка)  
 **Дата:** 2026-11-20  
 **Источник:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24  
-**Текущий этап:** этапы 1–4 реализованы в коде и тестах. Локальный PostgreSQL 16 используется для миграций, seed, API и integration-тестов. Реальный AI-провайдер проверен. Реальный n8n + Telegram runtime — **BLOCKED** (нет n8n/Telegram credentials и Docker). Docker-приёмка — BLOCKED. 2026-11-20: завершена реализация серверной фильтрации AI-контактов (`filterExtractedContacts`), health `{status, configured}`.
+**Текущий этап:** этапы 1–5 реализованы и проверены локально. Локальный PostgreSQL 16 используется для миграций, seed, API, integration- и E2E-тестов. Реальный AI-провайдер проверен 2026-11-20 (schema/prompt/`extractedContacts`). Реальный n8n + Telegram runtime — **BLOCKED** (нет credentials), локальный Docker Compose — **BLOCKED** (Docker не установлен; проверка в CI job `docker`).
 
 ## Легенда статусов
 
@@ -21,7 +21,10 @@
 | 2. CRUD и UI           | DONE (UI)                                      | CRM страницы: Dashboard, Leads, Contacts, Tasks (list/detail/create/edit), AI assistant integration point, login page. Проверено на локальном PostgreSQL 16.                                                                        |
 | 3. AI                  | DONE (бэкенд + тесты)                          | Реализованы `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `POST /api/ai/generate-reply`, `GET /api/ai/history`, провайдеры OpenAICompatible + Mock, Zod-валидация, retry, таймаут, история в БД. 94 теста проходят. |
 | 4. Automation          | DONE (код/тесты) / BLOCKED (runtime)           | Outbox, HMAC, n8n_processed, retry, API, Settings UI, n8n draft workflow реализованы. Runtime n8n/Telegram и Docker — BLOCKED: нет credentials/Docker.                                                                              |
-| 5. Проверка и упаковка | TODO                                           | Зависит от 1–4                                                                                                                                                                                                                      |
+| 5. Проверка и упаковка | DONE (локально) / BLOCKED (Docker, n8n) | Typecheck/lint/unit 199/integration 24/E2E 8/build PASS; реальный AI smoke PASS; gitleaks 0; audit 2 high; Docker runtime BLOCKED; CI workflows созданы. |
+
+> Разделы 3–6 ниже — исторические записи этапов 1–4. Итоговые фактические
+> результаты этапа 5 и текущие ограничения — в разделе 7.
 
 ## 1. Результаты аудита окружения (этап 0)
 
@@ -352,44 +355,61 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 
 ## 7. Этап 5 — Проверка и упаковка
 
-**Статус: TODO** (зависит от 1–4).
+**Статус: DONE (локальная проверка) / BLOCKED (Docker runtime, n8n + Telegram).**
+Все автоматические проверки выполнены на локальном PostgreSQL 16; реальный AI
+smoke выполнен 2026-11-20. Docker в локальном окружении отсутствует, поэтому
+Compose runtime не заявляется как PASS.
 
 ### 7.1. Задачи
 
-- [ ] Завершить unit-покрытие по разделу 14.1 ТЗ.
-- [ ] Завершить три группы integration-тестов (CRUD/Prisma, AI adapter, n8n webhook).
-- [ ] Запустить два E2E-сценария в доступном окружении; сохранить отчёт.
-- [ ] Выполнить `pnpm typecheck`, `pnpm lint`, `pnpm build`.
-- [ ] Выполнить `docker compose up -d --build`; проверить app+postgres.
-- [ ] Выполнить `docker compose --profile automation up -d`; проверить n8n.
-- [ ] Провести security review и заполнить таблицу в `docs/SECURITY.md` фактическими результатами.
-- [ ] Выполнить `pnpm audit --prod`; записать результат.
-- [ ] Выполнить secret scan; не печатать найденные значения.
-- [ ] Проверить `.env` в `.gitignore`, `.env.example` без секретов.
-- [ ] Завершить `docs/API.md` (все endpoints, query, errors, examples).
-- [ ] Завершить `docs/DEPLOYMENT.md` (Docker, ENV, migrations, seed, health, troubleshooting).
-- [ ] Завершить `docs/N8N.md` (workflow, HMAC, dedupe, Telegram, retry, diagnostics).
-- [ ] Завершить `README.md` (назначение, возможности, стек, запуск, ENV, AI, n8n, тесты, ограничения; явно указать Auth.js beta-риск и n8n 1.x EOL).
-- [ ] Создать `.github/workflows/ci.yml` (lint, typecheck, unit, integration, build).
-- [ ] Создать `.github/workflows/e2e.yml` (`workflow_dispatch`, Postgres, migrate/seed, app, Playwright, artifacts, mock AI).
-- [ ] Проверить Demo data: `[DEMO]` titles, banner, 1/3/10/20/15/2.
-- [ ] Проверить UI 1440/1280/768/375; все кнопки рабочие; состояния.
-- [ ] Подготовить финальный отчёт по разделу 21 ТЗ.
-- [ ] Записать реальные результаты проверок в этот план; не отмечать невыполненное.
+- [x] Завершить unit-покрытие по разделу 14.1 ТЗ: 199 тестов / 20 файлов.
+- [x] Integration-тесты: CRUD/Workspace isolation, AI adapter/service, n8n webhook/outbox/`n8n_processed` — 24 теста / 4 файла.
+- [x] Два основных E2E-сценария (login → lead, AI mock) + auth/role и responsive UI: 8 сценариев.
+- [x] `pnpm typecheck`, `pnpm lint`, `pnpm build`.
+- [x] Security review и фактическая таблица в `docs/SECURITY.md`.
+- [x] `pnpm audit --prod`: 2 high остаются; `postcss`/`effect` исправлены overrides.
+- [x] Secret scan gitleaks по всей истории: 0 находок.
+- [x] `.env` в `.gitignore`; examples без секретов.
+- [x] `docs/API.md`, `docs/DEPLOYMENT.md`, `docs/N8N.md`, `README.md`, `docs/DEMO.md` обновлены.
+- [x] `.github/workflows/ci.yml` и `.github/workflows/e2e.yml` созданы; добавлен CI job `docker`.
+- [x] Demo data: 1/3/10/20/15/2, все Lead/Task с `[DEMO]`, Dashboard banner, seed идемпотентен, без пароля падает.
+- [x] UI 1440/1280/768/375: нет горизонтального overflow, консоль без ошибок, mobile nav и пагинация работают.
+- [x] Реальный `pnpm test:ai` на текущей AI-схеме/prompt/`extractedContacts`.
+- [ ] Реальный n8n + Telegram E2E — **BLOCKED**: нет credentials/Docker.
+- [ ] Локальный `docker compose up` — **BLOCKED**: Docker не установлен; проверка в CI job `docker` ещё не запускалась.
 
-### 7.2. Критерии приёмки MVP
+### 7.2. Фактические результаты (2026-11-20)
 
-- Docker Compose запускает app+postgres; n8n отдельно; CRM работает без n8n.
-- Auth и роли работают; Workspace scope проверяется сервером.
-- Dashboard на реальных данных; метрики/конверсия по 24.3.
-- CRUD Leads/Contacts/Tasks с page/limit/search/status/priority/sort; limit ≤100.
-- AI: реальный provider, structured JSON, Zod, score breakdown, draft reply, history, ошибки, smoke test.
-- Automation: HMAC обе стороны, idempotency, retry, Telegram, повтор не создаёт дубль.
-- `/api/webhooks/lead-created` отсутствует.
-- `middleware.ts`, Settings read-only, Integration seed реализованы.
-- Unit/integration/E2E запущены; typecheck/lint/build пройдены.
-- Все документы раздела 18 существуют и актуальны.
-- Ограничения MVP перечислены в README и SECURITY.
+| Проверка              | Команда/метод                         | Результат                                      |
+| --------------------- | ------------------------------------- | ---------------------------------------------- |
+| Typecheck             | `pnpm typecheck`                      | PASS, 0 ошибок                                 |
+| Lint                  | `pnpm lint`                           | PASS, 0 ошибок, 1 warning postcss              |
+| Unit                  | `pnpm test:unit`                      | PASS, 199 тестов / 20 файлов                   |
+| Integration           | `pnpm test:integration`               | PASS, 24 теста / 4 файла (два прогона подряд)  |
+| E2E                   | `pnpm test:e2e`                       | PASS, 8 сценариев (mock AI)                    |
+| Build                 | `pnpm build`                          | PASS, 35 routes                                |
+| Реальный AI smoke     | `pnpm test:ai`                        | PASS: HTTP 200, Zod, contacts verified         |
+| Audit                 | `pnpm audit --prod`                   | FAIL: 2 high (zod 3, deepmerge-ts 7)           |
+| Secret scan           | `gitleaks detect --source . --redact` | PASS: 0 находок, 31 коммит                     |
+| Seed fresh schema     | `migrate deploy` + `db seed` x2       | PASS: 1/3/10/20/15/2, без дублей               |
+| Seed без пароля       | `tsx prisma/seed.ts` без env          | PASS: завершается ошибкой                      |
+| Docker Compose        | `docker compose up`                   | BLOCKED: Docker отсутствует                    |
+
+### 7.3. Осталось BLOCKED
+
+1. Реальный n8n 1.123.98 + Telegram: нет `N8N_WEBHOOK_URL`, HMAC-секретов, bot token/chat_id. Workflow остаётся draft.
+2. Docker Compose runtime: локально Docker нет; CI job `docker` создан, но workflow ещё не выполнялся.
+3. Роль `n8n_dedupe`: SQL подготовлен, runtime-проверка прав требует Docker/superuser.
+4. Оставшиеся audit high (`zod` 4, `deepmerge-ts` 8) требуют согласованных major-обновлений.
+
+### 7.4. Критерии приёмки MVP (статус)
+
+- CRM, auth/роли, Workspace scope, Dashboard, списки/фильтры/пагинация — PASS на локальном PostgreSQL и E2E.
+- AI: реальный provider PASS; mock E2E PASS; контакты фильтруются по исходному тексту; автоотправки нет.
+- Automation: код, HMAC, idempotency, retry, outbox и статусы PASS в unit/integration/API; реальный n8n/Telegram BLOCKED.
+- `/api/webhooks/lead-created` отсутствует; Settings read-only; Integration seed 2 записи.
+- Typecheck/lint/unit/integration/E2E/build — PASS; Docker/n8n runtime — BLOCKED.
+- Документы раздела 18 актуальны; ограничения перечислены в README/SECURITY.
 
 ## 8. Сквозные задачи
 
@@ -440,6 +460,20 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 | 2026-11-20 | AI    | filterExtractedContacts | unit `ai-contacts/ai-service/ai-prompt/ai-schema` | PASS (фильтр, промпт, service) |
 | 2026-11-20 | AI    | Health `{status, configured}` | `pnpm build` + docs/API.md | PASS; shape обновлён |
 | 2026-11-20 | Docs  | Синхронизация API/ARCH/DEPLOY/SECURITY | ручная сверка с кодом | PASS (health, extractedContacts, Origin) |
+| 2026-11-20 | 5     | Typecheck            | `pnpm typecheck`                  | PASS (0 ошибок)                            |
+| 2026-11-20 | 5     | Lint                 | `pnpm lint`                       | PASS (0 ошибок, 1 warning postcss)         |
+| 2026-11-20 | 5     | Unit                 | `pnpm test:unit`                  | PASS (199 тестов, 20 файлов)               |
+| 2026-11-20 | 5     | Integration          | `pnpm test:integration`           | PASS (24 теста, 4 файла, 2 прогона)        |
+| 2026-11-20 | 5     | E2E                  | `pnpm test:e2e`                   | PASS (8 сценариев, mock AI)                |
+| 2026-11-20 | 5     | Build                | `pnpm build`                      | PASS (35 routes)                           |
+| 2026-11-20 | 5     | Real AI smoke        | `pnpm test:ai`                    | PASS (HTTP 200, contacts verified)         |
+| 2026-11-20 | 5     | Secret scan          | gitleaks 8.30.1 (full history)    | PASS (0 находок, 31 коммит)                |
+| 2026-11-20 | 5     | Audit                | `pnpm audit --prod`               | FAIL: 2 high (zod, deepmerge-ts)           |
+| 2026-11-20 | 5     | Seed fresh schema    | `migrate deploy` + seed x2        | PASS (1/3/10/20/15/2, без дублей)          |
+| 2026-11-20 | 5     | Seed без пароля      | `tsx prisma/seed.ts` без env      | PASS (ошибка)                              |
+| 2026-11-20 | 5     | UI responsive        | Playwright 1440/1280/768/375      | PASS (нет overflow, консоль чистая)        |
+| 2026-11-20 | 5     | Docker Compose       | `docker compose up`               | BLOCKED (Docker не установлен)             |
+| 2026-11-20 | 5     | n8n/Telegram runtime | реальный E2E                      | BLOCKED (нет credentials)                  |
 
 ## 10. Открытые вопросы
 
@@ -472,7 +506,7 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 7. Глобальный pnpm 12.16.1; проект должен использовать 9.15.9 через Corepack.
 8. shadcn CLI 4.23.0 может тянуть Tailwind 4; компоненты вендорятся под Tailwind 3.
 9. Windows/PowerShell: скрипты должны быть cross-platform, без bash-измов.
-10. Git-репозиторий инициализирован; remote/CI secrets отсутствуют.
+10. CI workflows созданы (`.github/workflows/ci.yml`, `e2e.yml`); remote и secrets в текущем окружении не настроены, workflow ещё не запускались.
 11. AI credentials предоставлены и проверены; n8n/Telegram credentials отсутствуют, поэтому Telegram E2E BLOCKED.
 12. Eventual-доставка outbox: без трафика приложения PENDING-события задерживаются.
 13. `SENT` без callback может зависнуть; reconciliation в MVP — ручная сверка/status.
@@ -481,27 +515,27 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 16. Hard delete; восстановление данных не предусмотрено.
 17. Multi-tenancy фактически отсутствует; Workspace scope — предпосылка для будущего.
 18. n8n workflow — draft; импорт/активация в реальном n8n не выполнялись (runtime BLOCKED).
-19. `pnpm audit --prod` показывает 2 moderate + 4 high в транзитивных зависимостях (Next bundled postcss, deepmerge-ts, zod 3); обновление вне baseline требует согласования.
+19. `pnpm audit --prod` показывает 2 high в транзитивных зависимостях (`zod@3`, `deepmerge-ts@7`); `postcss` и `effect` исправлены pnpm overrides. Обновление оставшихся требует major и согласования.
 20. n8n 1.x basic-auth env может игнорироваться owner-account; UI n8n нельзя публиковать без защиты.
 21. PostgreSQL-роль `n8n_dedupe` создана SQL-скриптом, но runtime-проверка прав не выполнена (Docker/superuser access).
 22. Строгий граф переходов Lead/Task status не задан; MVP валидирует enum, AI не меняет status (см. вопрос 15).
 
 ## 12. Следующий конкретный шаг
 
-Этап 4 реализован в коде и тестах. Для закрытия runtime-части нужны:
+Этап 5 закрыт локально. Для полной внешней приёмки нужны:
 
-1. **n8n + Telegram credentials**: `N8N_WEBHOOK_URL`, два разных HMAC-секрета,
-   bot token, chat_id. Без них Telegram E2E остаётся BLOCKED.
-2. **Docker Desktop + WSL2** (или доступ к VPS): проверить
-   `docker compose --profile automation up -d`, `n8n-db-init`, права
-   `n8n_dedupe`, импорт draft workflow и реальный Telegram.
-3. **Импорт workflow** `n8n/workflows/lead_created_notification.json` в n8n
-   1.123.98, настройка credentials и активация; после этого обновить статус
-   draft → verified.
-4. **Этап 5** — E2E, CI, security review, финальная документация; учесть
-   `pnpm audit` и решение по n8n 1.x EOL.
+1. **Docker Desktop + WSL2** (или VPS): запустить CI job `docker` или локально
+   `docker compose --env-file .env.docker up -d --build`, проверить
+   `n8n-db-init`, права `n8n_dedupe` и профиль `automation`.
+2. **n8n + Telegram credentials**: `N8N_WEBHOOK_URL`, два разных HMAC-секрета,
+   bot token, chat_id. Импортировать `n8n/workflows/lead_created_notification.json`
+   в n8n 1.123.98, настроить credentials, активировать, выполнить E2E и перевести
+   workflow из draft в verified.
+3. Запустить GitHub Actions `ci.yml`/`e2e.yml` и приложить artifacts.
+4. После согласования выполнить major-обновления `zod` 4 и `deepmerge-ts` 8,
+   повторить audit и регрессионные тесты.
 
-Этапы 1–4 не переделывать без необходимости; runtime-проверки выполнять после
+Этапы 1–5 не переделывать без необходимости; runtime-проверки выполнять после
 предоставления credentials/Docker.
 
 ## 13. Журнал изменений плана
@@ -513,7 +547,10 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 | 2026-11-19 | Исправлены 15 критических дефектов; проверки на локальном PostgreSQL 16; Docker — BLOCKED                                                          |
 | 2026-11-19 | Подключён реальный AI: Yandex AI Studio, `aliceai-llm-flash`; `pnpm test:ai` и API-смоук PASS                                                      |
 | 2026-11-19 | Этап 4 Automation: outbox/HMAC/dedupe/retry/API/Settings UI/draft n8n workflow; 179 unit, 19 integration, build PASS; runtime n8n/Telegram BLOCKED |
-| 2026-11-20 | AI: `extractedContacts` в схеме/промпте/provider, серверный `filterExtractedContacts`; health `{status, configured}`; docs/API+ARCH+DEPLOY+SECURITY обновлены | unit 196 PASS (20 файлов), integration 18/19 PASS (+1 timing-flaky, PASS in isolation), typecheck/lint/build PASS |
+| 2026-11-20 | Этап 5 закрыт локально: 199 unit, 24 integration, 8 E2E, build PASS; реальный AI smoke; gitleaks 0; audit 2 high; CI workflows; seed `[DEMO]`; Docker/n8n BLOCKED |
+| 2026-11-20 | AI: `filterExtractedContacts` исправлен для текста с другими числами; smoke проверяет отсутствие выдуманных контактов |
+| 2026-11-20 | E2E: env-file replaced with Playwright-owned `.env` loader + mock AI override; AI и responsive сценарии; API 401/403 проверки |
+| 2026-11-20 | Integration: outbox test изолирован отдельной Workspace + `workspaceId` scope; flaky-тест стабилен (2 прогона) |
 
 ## 14. Исправление критических дефектов (2026-11-19)
 
