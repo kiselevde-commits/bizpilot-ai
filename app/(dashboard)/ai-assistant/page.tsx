@@ -1,103 +1,145 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useState, useEffect, useMemo } from "react";
+import { Sparkles, Wand2 } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { toast } from "sonner";
+import { Alert } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { AnalysisResult, type AppliedAnalysis } from "@/components/ai/analysis-result";
+import { formatDateTime } from "@/lib/utils/labels";
 
-type LeadOption = {
+type LeadOption = { id: string; title: string; message?: string };
+
+type HealthState =
+  | { status: "loading" }
+  | { status: "ready"; mode: string }
+  | { status: "error"; message: string };
+
+type HistoryItem = {
   id: string;
-  title: string;
-  message?: string;
+  status: string;
+  provider: string;
+  model: string;
+  durationMs: number | null;
+  errorMessage: string | null;
+  createdAt: string;
 };
 
-type Analysis = {
-  summary: string;
-  leadScore: number;
-  category: string;
-  intent: string;
-  priority: "LOW" | "MEDIUM" | "HIGH" | "URGENT";
-  justification?: string;
-  factors?: string[];
-  recommendations?: string[];
-  risks?: string[];
-  missingInfo?: string[];
-};
-
-type AnalyzeResponse = {
+type AnalyzePayload = {
   success: boolean;
-  data?: {
-    analysis: Analysis;
-    provider: string;
-    model: string;
-    durationMs?: number;
-  };
+  data?: { analysis: AppliedAnalysis; provider: string; model: string; durationMs?: number };
+  error?: { code?: string; message?: string };
+};
+
+type ReplyPayload = {
+  success: boolean;
+  data?: { draftReply: string };
   error?: { message?: string };
+};
+
+type HistoryPayload = {
+  success: boolean;
+  data?: { items: HistoryItem[]; pagination: { total: number } };
 };
 
 export default function AIAssistantPage() {
   const searchParams = useSearchParams();
   const initialLeadId = searchParams.get("leadId") ?? "";
 
-  const [health, setHealth] = useState<{ status: string } | null>(null);
-  const [healthError, setHealthError] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
-  const [applying, setApplying] = useState(false);
-  const [analysis, setAnalysis] = useState<Analysis | null>(null);
-  const [applied, setApplied] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [inputText, setInputText] = useState("");
+  const [health, setHealth] = useState<HealthState>({ status: "loading" });
   const [leads, setLeads] = useState<LeadOption[]>([]);
+  const [leadsState, setLeadsState] = useState<"loading" | "ready" | "error">("loading");
   const [leadsError, setLeadsError] = useState<string | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState(initialLeadId);
+  const [inputText, setInputText] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analysis, setAnalysis] = useState<AppliedAnalysis | null>(null);
+  const [analysisMeta, setAnalysisMeta] = useState<{
+    provider: string;
+    model: string;
+    durationMs?: number;
+  } | null>(null);
+  const [analysisWarning, setAnalysisWarning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const [replying, setReplying] = useState(false);
+  const [draftReply, setDraftReply] = useState<string | null>(null);
+  const [replyError, setReplyError] = useState<string | null>(null);
+
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [historyState, setHistoryState] = useState<"loading" | "ready" | "error">("loading");
 
   useEffect(() => {
     let cancelled = false;
+
     fetch("/api/ai/health")
-      .then((res) => {
-        if (!res.ok) throw new Error("AI service unavailable");
-        return res.json();
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()) as { status?: string; configured?: boolean };
       })
       .then((data) => {
-        if (!cancelled) setHealth(data);
+        if (cancelled) return;
+        setHealth({
+          status: "ready",
+          mode: data.configured ? "configured" : "not-configured",
+        });
       })
-      .catch((err) => {
-        if (!cancelled)
-          setHealthError(err instanceof Error ? err.message : "AI service unavailable");
+      .catch(() => {
+        if (cancelled) setHealth({ status: "error", message: "AI-провайдер недоступен" });
+      });
+
+    fetch("/api/leads?limit=100&sort=createdAt:desc")
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Не удалось загрузить список заявок");
+        return (await res.json()) as { data?: { items?: LeadOption[] } };
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        setLeads(payload.data?.items ?? []);
+        setLeadsState("ready");
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        setLeadsState("error");
+        setLeadsError(err instanceof Error ? err.message : "Не удалось загрузить заявки");
       });
 
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  const loadHistory = useCallback((leadId: string) => {
+    if (!leadId) {
+      setHistory([]);
+      setHistoryState("ready");
+      return;
+    }
+
+    setHistoryState("loading");
+    fetch(`/api/ai/history?leadId=${encodeURIComponent(leadId)}&limit=10`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()) as HistoryPayload;
+      })
+      .then((payload) => {
+        setHistory(payload.data?.items ?? []);
+        setHistoryState("ready");
+      })
+      .catch(() => {
+        setHistory([]);
+        setHistoryState("error");
+      });
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/leads?limit=100&sort=createdAt:desc")
-      .then((res) => {
-        if (!res.ok) throw new Error("Не удалось загрузить список заявок");
-        return res.json();
-      })
-      .then((payload: { data?: { items?: LeadOption[] } }) => {
-        if (cancelled) return;
-        const items = payload.data?.items ?? [];
-        setLeads(items.map((item) => ({ id: item.id, title: item.title, message: item.message })));
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setLeadsError(err instanceof Error ? err.message : "Не удалось загрузить заявки");
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    loadHistory(selectedLeadId);
+  }, [selectedLeadId, loadHistory]);
 
   const selectedLead = useMemo(
     () => leads.find((lead) => lead.id === selectedLeadId) ?? null,
@@ -111,15 +153,20 @@ export default function AIAssistantPage() {
     );
   }, [selectedLead]);
 
-  const handleLeadChange = (value: string) => {
+  function handleLeadChange(value: string) {
     setSelectedLeadId(value);
     setAnalysis(null);
-    setApplied(false);
+    setAnalysisMeta(null);
+    setAnalysisWarning(null);
     setError(null);
-  };
+    setDraftReply(null);
+    setReplyError(null);
+    const lead = leads.find((item) => item.id === value);
+    setInputText(lead?.message ?? "");
+  }
 
-  const handleAnalyze = async (e: React.FormEvent) => {
-    e.preventDefault();
+  async function handleAnalyze(event: React.FormEvent) {
+    event.preventDefault();
 
     if (!selectedLeadId) {
       setError("Выберите заявку для анализа");
@@ -129,7 +176,9 @@ export default function AIAssistantPage() {
     setAnalyzing(true);
     setError(null);
     setAnalysis(null);
-    setApplied(false);
+    setAnalysisMeta(null);
+    setAnalysisWarning(null);
+    setDraftReply(null);
 
     try {
       const res = await fetch("/api/ai/analyze", {
@@ -138,190 +187,279 @@ export default function AIAssistantPage() {
         body: JSON.stringify({ text: inputText, leadId: selectedLeadId }),
       });
 
-      const payload = (await res.json()) as AnalyzeResponse;
+      const payload = (await res.json()) as AnalyzePayload;
 
       if (!res.ok || !payload.success || !payload.data) {
-        throw new Error(payload.error?.message || "AI analysis failed");
+        throw new Error(payload.error?.message || "AI-анализ завершился ошибкой");
       }
 
       setAnalysis(payload.data.analysis);
+      setAnalysisMeta({
+        provider: payload.data.provider,
+        model: payload.data.model,
+        durationMs: payload.data.durationMs,
+      });
+
+      const extracted = payload.data.analysis as AppliedAnalysis & {
+        extractedContacts?: unknown;
+      };
+      const extractedContacts = extracted.extractedContacts;
+      if (extractedContacts && typeof extractedContacts === "object") {
+        const values = Object.values(extractedContacts as Record<string, unknown>).filter(
+          (value) => typeof value === "string" && value.trim().length > 0,
+        );
+        setAnalysisWarning(
+          values.length > 0
+            ? `AI нашёл контактные данные в тексте: ${values.join(", ")}. Они не сохраняются автоматически — проверьте контакты вручную.`
+            : "AI не обнаружил контактных данных в тексте заявки.",
+        );
+      }
+
       toast.success("AI-анализ завершён");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "AI analysis failed");
-      toast.error(err instanceof Error ? err.message : "AI analysis failed");
+      const message = err instanceof Error ? err.message : "AI-анализ завершился ошибкой";
+      setError(message);
+      toast.error(message);
     } finally {
       setAnalyzing(false);
     }
-  };
+  }
 
-  const handleApply = async () => {
-    if (!analysis || !selectedLeadId) return;
+  async function handleDraftReply() {
+    if (!selectedLeadId) return;
 
-    setApplying(true);
+    setReplying(true);
+    setReplyError(null);
+    setDraftReply(null);
 
     try {
-      const res = await fetch(`/api/leads/${selectedLeadId}/apply-analysis`, {
+      const res = await fetch("/api/ai/generate-reply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          summary: analysis.summary,
-          leadScore: analysis.leadScore,
-          category: analysis.category,
-          intent: analysis.intent,
-          priority: analysis.priority,
-        }),
+        body: JSON.stringify({ text: inputText, leadId: selectedLeadId }),
       });
 
-      const payload = (await res.json()) as { success: boolean; error?: { message?: string } };
-
-      if (!res.ok || !payload.success) {
-        throw new Error(payload.error?.message || "Не удалось применить анализ");
+      const payload = (await res.json()) as ReplyPayload;
+      if (!res.ok || !payload.success || !payload.data) {
+        throw new Error(payload.error?.message || "Не удалось создать черновик");
       }
 
-      setApplied(true);
-      toast.success("Результат анализа применён к заявке");
+      setDraftReply(payload.data.draftReply);
+      toast.success("Черновик ответа готов");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось применить анализ");
+      const message = err instanceof Error ? err.message : "Не удалось создать черновик";
+      setReplyError(message);
+      toast.error(message);
     } finally {
-      setApplying(false);
+      setReplying(false);
     }
-  };
+  }
+
+  async function copyDraft() {
+    if (!draftReply) return;
+    try {
+      await navigator.clipboard.writeText(draftReply);
+      toast.success("Черновик скопирован");
+    } catch {
+      toast.error("Не удалось скопировать текст");
+    }
+  }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="AI-помощник"
-        description="Анализ заявок с использованием искусственного интеллекта"
+        description="Анализ заявок, оценка лида и черновик ответа на реальной модели"
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Статус AI-провайдера</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {healthError && (
-            <div className="text-sm text-destructive">AI-провайдер недоступен: {healthError}</div>
-          )}
-          {health && (
-            <div className="flex items-center gap-3">
-              <Badge variant="secondary">Активен</Badge>
-              <span className="text-sm text-muted-foreground">Статус: {health.status}</span>
-            </div>
-          )}
-          {!health && !healthError && (
-            <div className="text-sm text-muted-foreground">Проверка статуса…</div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">Анализ заявки</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-col gap-2">
-            <label className="text-sm font-medium text-muted-foreground" htmlFor="lead-select">
-              Заявка
-            </label>
-            <select
-              id="lead-select"
-              className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              value={selectedLeadId}
-              onChange={(e) => handleLeadChange(e.target.value)}
-              disabled={analyzing}
-            >
-              <option value="">— Выберите заявку —</option>
-              {leads.map((lead) => (
-                <option key={lead.id} value={lead.id}>
-                  {lead.title}
-                </option>
-              ))}
-            </select>
-            {leadsError && <div className="text-xs text-destructive">{leadsError}</div>}
-            {!leadsError && leads.length === 0 && (
-              <div className="text-xs text-muted-foreground">
-                Заявок нет. Сначала создайте заявку в разделе «Заявки».
-              </div>
-            )}
-          </div>
-
-          <form onSubmit={handleAnalyze} className="space-y-4">
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-medium text-muted-foreground">Текст для анализа</label>
-              <textarea
-                className="h-48 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                placeholder="Вставьте текст заявки для AI-анализа"
-                disabled={analyzing}
-                rows={4}
-              />
-            </div>
-            <Button type="submit" disabled={analyzing || !inputText.trim() || !selectedLeadId}>
-              {analyzing ? "Анализ…" : "Анализировать"}
-            </Button>
-          </form>
-
-          {error && (
-            <div className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive">
-              {error}
-            </div>
-          )}
-
-          {analysis && (
-            <div className="space-y-4 rounded-lg bg-muted p-4">
-              <div className="text-sm font-medium">Результат анализа</div>
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="outline">Оценка: {analysis.leadScore} / 100</Badge>
-                <Badge variant="outline">Категория: {analysis.category}</Badge>
-                <Badge variant="outline">Намерение: {analysis.intent}</Badge>
-                <Badge variant="outline">Приоритет: {analysis.priority}</Badge>
-              </div>
-
-              <div>
-                <div className="text-xs font-medium text-muted-foreground">Резюме</div>
-                <div className="whitespace-pre-wrap text-sm">{analysis.summary}</div>
-              </div>
-
-              {analysis.justification && (
-                <div>
-                  <div className="text-xs font-medium text-muted-foreground">Обоснование</div>
-                  <div className="whitespace-pre-wrap text-sm">{analysis.justification}</div>
-                </div>
+      <div className="grid gap-6 xl:grid-cols-3">
+        <div className="space-y-6 xl:col-span-2">
+          <Card>
+            <CardHeader className="flex-row items-center justify-between space-y-0">
+              <CardTitle className="flex items-center gap-2 text-sm font-medium">
+                <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
+                Анализ заявки
+              </CardTitle>
+              {health.status === "loading" ? (
+                <Skeleton className="h-5 w-24" />
+              ) : health.status === "ready" ? (
+                <Badge variant="success" data-testid="ai-health">
+                  AI готов
+                </Badge>
+              ) : (
+                <Badge variant="destructive" data-testid="ai-health">
+                  Недоступен
+                </Badge>
               )}
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {health.status === "error" ? (
+                <Alert variant="destructive">{health.message}. Проверьте настройки AI в ENV.</Alert>
+              ) : null}
 
-              <AnalysisList title="Факторы" items={analysis.factors} />
-              <AnalysisList title="Рекомендации" items={analysis.recommendations} />
-              <AnalysisList title="Риски" items={analysis.risks} />
-              <AnalysisList title="Недостающая информация" items={analysis.missingInfo} />
-
-              <div className="flex items-center gap-3">
-                <Button type="button" onClick={handleApply} disabled={applying || applied}>
-                  {applying ? "Применение…" : applied ? "Применено" : "Применить"}
-                </Button>
-                {applied && (
-                  <span className="text-xs text-muted-foreground">Результат сохранён в заявке</span>
+              <div className="flex flex-col gap-2">
+                <label htmlFor="lead-select" className="text-sm font-medium">
+                  Заявка
+                </label>
+                {leadsState === "loading" ? (
+                  <Skeleton className="h-10 w-full" />
+                ) : (
+                  <select
+                    id="lead-select"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={selectedLeadId}
+                    onChange={(event) => handleLeadChange(event.target.value)}
+                    disabled={analyzing}
+                  >
+                    <option value="">— Выберите заявку —</option>
+                    {leads.map((lead) => (
+                      <option key={lead.id} value={lead.id}>
+                        {lead.title}
+                      </option>
+                    ))}
+                  </select>
                 )}
+                {leadsState === "error" ? (
+                  <p className="text-xs text-destructive">{leadsError}</p>
+                ) : null}
+                {leadsState === "ready" && leads.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Заявок нет. Сначала создайте заявку в разделе «Заявки».
+                  </p>
+                ) : null}
               </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
-function AnalysisList({ title, items }: { title: string; items?: string[] }) {
-  if (!items || items.length === 0) return null;
+              <form onSubmit={handleAnalyze} className="space-y-4">
+                <div className="flex flex-col gap-2">
+                  <label htmlFor="analysis-text" className="text-sm font-medium">
+                    Текст для анализа
+                  </label>
+                  <textarea
+                    id="analysis-text"
+                    className="min-h-40 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    value={inputText}
+                    onChange={(event) => setInputText(event.target.value)}
+                    placeholder="Вставьте текст заявки для AI-анализа"
+                    disabled={analyzing}
+                    rows={6}
+                  />
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="submit"
+                    disabled={analyzing || !inputText.trim() || !selectedLeadId}
+                    data-testid="analyze-button"
+                  >
+                    <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                    {analyzing ? "Анализ…" : "Анализировать"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={handleDraftReply}
+                    disabled={replying || !inputText.trim() || !selectedLeadId}
+                  >
+                    {replying ? "Генерация…" : "Черновик ответа"}
+                  </Button>
+                  {analysisMeta ? (
+                    <span className="text-xs text-muted-foreground">
+                      {analysisMeta.model}
+                      {analysisMeta.durationMs ? ` · ${analysisMeta.durationMs} мс` : ""}
+                    </span>
+                  ) : null}
+                </div>
+              </form>
 
-  return (
-    <div>
-      <div className="text-xs font-medium text-muted-foreground">{title}</div>
-      <ul className="list-disc pl-5 text-sm">
-        {items.map((item, index) => (
-          <li key={`${title}-${index}`}>{item}</li>
-        ))}
-      </ul>
+              {analyzing ? (
+                <div className="space-y-2" aria-live="polite">
+                  <Skeleton className="h-4 w-2/3" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-1/2" />
+                </div>
+              ) : null}
+
+              {error ? (
+                <Alert variant="destructive" role="alert">
+                  {error}
+                </Alert>
+              ) : null}
+            </CardContent>
+          </Card>
+
+          {analysis && selectedLead ? (
+            <AnalysisResult
+              analysis={analysis}
+              leadId={selectedLead.id}
+              leadTitle={selectedLead.title}
+              warning={analysisWarning}
+              onApplied={() => loadHistory(selectedLead.id)}
+            />
+          ) : null}
+
+          {draftReply ? (
+            <Card data-testid="draft-reply">
+              <CardHeader className="flex-row items-center justify-between space-y-0">
+                <CardTitle className="text-sm font-medium">Черновик ответа</CardTitle>
+                <Button variant="outline" size="sm" onClick={copyDraft}>
+                  Скопировать
+                </Button>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="whitespace-pre-wrap break-words text-sm">{draftReply}</p>
+                <p className="text-xs text-muted-foreground">
+                  Черновик не отправляется автоматически: проверьте и отредактируйте текст.
+                </p>
+              </CardContent>
+            </Card>
+          ) : null}
+
+          {replyError ? <Alert variant="destructive">{replyError}</Alert> : null}
+        </div>
+
+        <Card className="h-fit">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">История анализов</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {historyState === "loading" ? (
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-4 w-2/3" />
+              </div>
+            ) : historyState === "error" ? (
+              <p className="text-sm text-destructive">Не удалось загрузить историю</p>
+            ) : !selectedLeadId ? (
+              <p className="text-sm text-muted-foreground">Выберите заявку, чтобы увидеть историю.</p>
+            ) : history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Для этой заявки ещё не было запусков анализа.
+              </p>
+            ) : (
+              <ol className="space-y-3" data-testid="ai-history">
+                {history.map((item) => (
+                  <li key={item.id} className="rounded-lg border p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <Badge variant={item.status === "SUCCESS" ? "success" : "destructive"}>
+                        {item.status === "SUCCESS" ? "Успешно" : "Ошибка"}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {formatDateTime(item.createdAt)}
+                      </span>
+                    </div>
+                    <p className="mt-2 truncate text-xs text-muted-foreground">{item.model}</p>
+                    {item.errorMessage ? (
+                      <p className="mt-1 break-words text-xs text-destructive">
+                        {item.errorMessage}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ol>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -44,6 +44,31 @@ export const CONTACT_STATUS_LABELS: Record<ContactStatus, string> = {
   INACTIVE: "Неактивный",
 };
 
+export const LEAD_CATEGORY_LABELS: Record<string, string> = {
+  business_automation: "Бизнес-автоматизация",
+  crm_integration: "Интеграция CRM",
+  ai_bot: "AI-бот",
+  document_flow: "Документооборот",
+  web_app: "Веб-приложение",
+  other: "Другое",
+};
+
+export const LEAD_INTENT_LABELS: Record<string, string> = {
+  request: "Запрос",
+  question: "Вопрос",
+  complaint: "Жалоба",
+  info: "Информация",
+  other: "Другое",
+};
+
+export const CUSTOMER_TYPE_LABELS: Record<string, string> = {
+  b2b: "B2B",
+  b2c: "B2C",
+  b2g: "B2G",
+  unknown: "Неизвестно",
+};
+
+
 export const AUTOMATION_STATUS_LABELS: Record<AutomationEventStatus, string> = {
   PENDING: "Ожидает отправки",
   SENT: "Принято n8n",
@@ -64,3 +89,11 @@ export function formatDateTime(value: Date | string): string {
     timeStyle: "short",
   }).format(new Date(value));
 }
+
+export function formatDateTimeLocalInput(value: Date | string): string {
+  const date = new Date(value);
+  const pad = (n: number) => String(n).padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
