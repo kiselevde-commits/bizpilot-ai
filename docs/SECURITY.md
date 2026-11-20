@@ -152,7 +152,7 @@ SELECT
 | E2E                          | `pnpm test:e2e`                                              | 8 сценариев            | auth, CRM, AI (mock), responsive UI; Chromium                                                 | PASS    |
 | Production build             | `pnpm build`                                                 | успешно                | 35 routes                                                                                     | PASS    |
 | Реальный AI smoke            | `pnpm test:ai`                                               | HTTP 200, Zod PASS     | Yandex AI Studio; `extractedContacts` сверены с текстом                                      | PASS    |
-| `pnpm audit --prod`          | `pnpm audit --prod`                                          | 2 high                 | `zod@3.25.76`, `deepmerge-ts@7.1.5`; см. раздел 9                                             | FAIL    |
+| `pnpm audit --prod`          | `pnpm audit --prod`                                          | 0 известных уязвимостей | `zod@4.6.7`, `deepmerge-ts@8.0.2` (2026-11-21); см. раздел 9                                  | PASS    |
 | Secret scan (исходники + вся Git-история) | `gitleaks detect --source . --redact`; `gitleaks detect --no-git` | 0 находок              | gitleaks 8.30.1; 31 коммит + рабочее дерево (кроме `.env`/deps)                              | PASS    |
 | `.gitignore` и env examples  | `git ls-files`, `git check-ignore`                           | `.env` не отслеживается | в Git только `.env.example` и `.env.docker.example` с `CHANGE_ME`                            | PASS    |
 | IDOR/BOLA и Workspace scope  | `tests/integration/workspace-isolation.integration.test.ts`  | 5 тестов               | A не читает/не перечисляет/не меняет/не удаляет записи B; API использует `requireUser`        | PASS    |
@@ -217,28 +217,21 @@ SELECT
 
 ## 9. `pnpm audit --prod` (фактический результат)
 
-Команда завершилась с exit code 1: **2 high, 0 critical, 0 moderate**.
+Последняя проверка (2026-11-21): **0 известных уязвимостей**
+(`pnpm audit --prod`, exit code 0).
 
-Совместимые исправления (patch/minor) применены через `pnpm.overrides` в
-`package.json`:
+Ранее выявленные advisories закрыты:
 
-| Пакет   | Было   | Стало  | Причина                                   |
-| ------- | ------ | ------ | ----------------------------------------- |
-| effect  | 3.21.0 | 3.22.1 | ReDoS в `Schema.TemplateLiteral` (GHSA-7589-6fvf-x4pw), patch в 3.22.1 |
-| postcss | 8.4.31 | 8.5.33 | 4 advisory (XSS/sourceMappingURL), исправлены в 8.5.x |
+| Пакет        | Было    | Стало                 | Advisory / решение                                      |
+| ------------ | ------- | --------------------- | ------------------------------------------------------- |
+| zod          | 3.25.76 | 4.6.7                 | GHSA-mrhx-c7xc-m3w5; patched `>=4.6.6`                  |
+| deepmerge-ts | 7.1.5   | 8.0.2 (pnpm override) | GHSA-ggr8-5vv4-36mx; patched `>=8.0.0`                  |
+| effect       | 3.21.0  | 3.22.1 (pnpm override) | ReDoS в `Schema.TemplateLiteral` (GHSA-7589-6fvf-x4pw) |
+| postcss      | 8.4.31  | 8.5.33 (pnpm override) | 4 advisory (XSS/sourceMappingURL)                      |
 
-После overrides build, `prisma generate`, unit/integration и E2E проверены
-повторно.
-
-Оставшиеся advisories:
-
-| Пакет        | Путь                                       | Advisory                                      | Оценка                                                                                                  |
-| ------------ | ------------------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| zod 3.25.76  | `zod@3.25.76`                              | GHSA-mrhx-c7xc-m3w5                           | Patched только `>=4.6.6` (major). Zod 3 зафиксирован baseline; входы ограничены body limit и `.max()`, произвольные regex из пользовательских данных не компилируются. Обновление до Zod 4 требует согласования. |
-| deepmerge-ts | `@prisma/client > prisma > @prisma/config` | GHSA-ggr8-5vv4-36mx                           | Patched только `>=8.0.0` (major). Используется Prisma CLI/config при generate/migrate, не в request path. |
-
-`effect` и `postcss` больше не появляются в audit. Оставшиеся два риска
-зафиксированы, а не скрыты; major-обновления без согласования не выполнялись.
+После обновления `zod` и overrides повторно выполнены
+`pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm test:unit`,
+integration 36/5 на изолированной схеме, `pnpm build` и `pnpm audit --prod`.
 
 
 ## 10. Что осталось проверить (BLOCKED)
@@ -249,8 +242,6 @@ SELECT
    выполнить реальный Telegram E2E.
 3. Запустить CI job `docker` (Compose config/build/up + health) на GitHub
    Actions: локально Docker отсутствует, workflow ещё не выполнялся.
-4. После согласования major-обновлений `zod` 4 и `deepmerge-ts` 8 повторить
-   `pnpm audit --prod` и регрессионные тесты.
 
 
 ## 11. Ротация секретов и инциденты

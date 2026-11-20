@@ -21,7 +21,7 @@
 | 2. CRUD и UI           | DONE (UI)                                      | CRM страницы: Dashboard, Leads, Contacts, Tasks (list/detail/create/edit), AI assistant integration point, login page. Проверено на локальном PostgreSQL 16.                                                                        |
 | 3. AI                  | DONE (бэкенд + тесты)                          | Реализованы `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `POST /api/ai/generate-reply`, `GET /api/ai/history`, провайдеры OpenAICompatible + Mock, Zod-валидация, retry, таймаут, история в БД. 94 теста проходят. |
 | 4. Automation          | DONE (код/тесты) / BLOCKED (runtime)           | Outbox, HMAC, n8n_processed, retry, API, Settings UI, n8n draft workflow реализованы. Runtime n8n/Telegram и Docker — BLOCKED: нет credentials/Docker.                                                                              |
-| 5. Проверка и упаковка | DONE (локально) / BLOCKED (Docker, n8n) | Typecheck/lint/unit 199/integration 24/E2E 8/build PASS; реальный AI smoke PASS; gitleaks 0; audit 2 high; Docker runtime BLOCKED; CI workflows созданы. |
+| 5. Проверка и упаковка | DONE (локально) / BLOCKED (Docker, n8n) | Typecheck/lint/unit 199/integration 24/E2E 8/build PASS; реальный AI smoke PASS; gitleaks 0; audit 0; Docker runtime BLOCKED; CI workflows созданы. |
 | 0.1 Workspace Security Patch | DONE (локальные проверки) | Lead (`contactId`, `assignedToId`) и Task (`leadId`, `contactId`, `assignedToId`) проверяются на принадлежность текущему Workspace до записи; чужой/несуществующий ID → 404. 23 новых unit-теста; typecheck/lint PASS; integration NOT RUN (нет отдельной тестовой БД). |
 | 0.2 Workspace Read Isolation | DONE (локальные проверки) | Read includes фильтруются по Workspace; `deleteLead` отклоняет legacy чужой Task с 409; read-only audit script; 12 PostgreSQL integration-тестов на изолированной схеме; typecheck/lint PASS. Аудит целевой БД не запускался. |
 
@@ -373,7 +373,7 @@ Compose runtime не заявляется как PASS.
 - [x] Два основных E2E-сценария (login → lead, AI mock) + auth/role и responsive UI: 8 сценариев.
 - [x] `pnpm typecheck`, `pnpm lint`, `pnpm build`.
 - [x] Security review и фактическая таблица в `docs/SECURITY.md`.
-- [x] `pnpm audit --prod`: 2 high остаются; `postcss`/`effect` исправлены overrides.
+- [x] `pnpm audit --prod`: 0 известных уязвимостей; `zod` 4.6.7, `deepmerge-ts`/`postcss`/`effect` закреплены.
 - [x] Secret scan gitleaks по всей истории: 0 находок.
 - [x] `.env` в `.gitignore`; examples без секретов.
 - [x] `docs/API.md`, `docs/DEPLOYMENT.md`, `docs/N8N.md`, `README.md`, `docs/DEMO.md` обновлены.
@@ -384,7 +384,7 @@ Compose runtime не заявляется как PASS.
 - [ ] Реальный n8n + Telegram E2E — **BLOCKED**: нет credentials/Docker.
 - [ ] Локальный `docker compose up` — **BLOCKED**: Docker не установлен; проверка в CI job `docker` ещё не запускалась.
 
-### 7.2. Фактические результаты (2026-11-20)
+### 7.2. Фактические результаты (2026-11-20; audit — 2026-11-21)
 
 | Проверка              | Команда/метод                         | Результат                                      |
 | --------------------- | ------------------------------------- | ---------------------------------------------- |
@@ -395,7 +395,7 @@ Compose runtime не заявляется как PASS.
 | E2E                   | `pnpm test:e2e`                       | PASS, 8 сценариев (mock AI)                    |
 | Build                 | `pnpm build`                          | PASS, 35 routes                                |
 | Реальный AI smoke     | `pnpm test:ai`                        | PASS: HTTP 200, Zod, contacts verified         |
-| Audit                 | `pnpm audit --prod`                   | FAIL: 2 high (zod 3, deepmerge-ts 7)           |
+| Audit                 | `pnpm audit --prod`                   | PASS: 0 известных уязвимостей (2026-11-21)     |
 | Secret scan           | `gitleaks detect --source . --redact` | PASS: 0 находок, 31 коммит                     |
 | Seed fresh schema     | `migrate deploy` + `db seed` x2       | PASS: 1/3/10/20/15/2, без дублей               |
 | Seed без пароля       | `tsx prisma/seed.ts` без env          | PASS: завершается ошибкой                      |
@@ -406,7 +406,6 @@ Compose runtime не заявляется как PASS.
 1. Реальный n8n 1.123.98 + Telegram: нет `N8N_WEBHOOK_URL`, HMAC-секретов, bot token/chat_id. Workflow остаётся draft.
 2. Docker Compose runtime: локально Docker нет; CI job `docker` создан, но workflow ещё не выполнялся.
 3. Роль `n8n_dedupe`: SQL подготовлен, runtime-проверка прав требует Docker/superuser.
-4. Оставшиеся audit high (`zod` 4, `deepmerge-ts` 8) требуют согласованных major-обновлений.
 
 ### 7.4. Критерии приёмки MVP (статус)
 
@@ -480,6 +479,7 @@ Compose runtime не заявляется как PASS.
 | 2026-11-20 | 5     | UI responsive        | Playwright 1440/1280/768/375      | PASS (нет overflow, консоль чистая)        |
 | 2026-11-20 | 5     | Docker Compose       | `docker compose up`               | BLOCKED (Docker не установлен)             |
 | 2026-11-20 | 5     | n8n/Telegram runtime | реальный E2E                      | BLOCKED (нет credentials)                  |
+| 2026-11-21 | 5     | Audit                | `pnpm audit --prod`               | PASS: 0 известных уязвимостей (zod 4.6.7, deepmerge-ts 8.0.2) |
 
 ## 10. Открытые вопросы
 
@@ -521,7 +521,7 @@ Compose runtime не заявляется как PASS.
 16. Hard delete; восстановление данных не предусмотрено.
 17. Multi-tenancy фактически отсутствует; Workspace scope — предпосылка для будущего.
 18. n8n workflow — draft; импорт/активация в реальном n8n не выполнялись (runtime BLOCKED).
-19. `pnpm audit --prod` показывает 2 high в транзитивных зависимостях (`zod@3`, `deepmerge-ts@7`); `postcss` и `effect` исправлены pnpm overrides. Обновление оставшихся требует major и согласования.
+19. `pnpm audit --prod` показывает 0 известных уязвимостей: `zod` обновлён до 4.6.7, `deepmerge-ts` 8.0.2, `postcss` и `effect` закреплены pnpm overrides.
 20. n8n 1.x basic-auth env может игнорироваться owner-account; UI n8n нельзя публиковать без защиты.
 21. PostgreSQL-роль `n8n_dedupe` создана SQL-скриптом, но runtime-проверка прав не выполнена (Docker/superuser access).
 22. Строгий граф переходов Lead/Task status не задан; MVP валидирует enum, AI не меняет status (см. вопрос 15).
@@ -538,8 +538,6 @@ Compose runtime не заявляется как PASS.
    в n8n 1.123.98, настроить credentials, активировать, выполнить E2E и перевести
    workflow из draft в verified.
 3. Запустить GitHub Actions `ci.yml`/`e2e.yml` и приложить artifacts.
-4. После согласования выполнить major-обновления `zod` 4 и `deepmerge-ts` 8,
-   повторить audit и регрессионные тесты.
 
 Этапы 1–5 не переделывать без необходимости; runtime-проверки выполнять после
 предоставления credentials/Docker.
@@ -559,6 +557,7 @@ Compose runtime не заявляется как PASS.
 | 2026-11-20 | Integration: outbox test изолирован отдельной Workspace + `workspaceId` scope; flaky-тест стабилен (2 прогона) |
 | 2026-11-20 | Мини-этап 0.1: Workspace-проверка связей Lead/Task (`contactId`, `leadId`, `assignedToId`); 23 unit-теста, typecheck/lint PASS; integration NOT RUN (нет отдельной тестовой БД) |
 | 2026-11-20 | Мини-этап 0.2: read isolation для Lead/Task/Contact; `deleteLead` 409 при legacy чужом Task; read-only audit script; 12 PostgreSQL integration-тестов на изолированной схеме; target audit NOT RUN |
+| 2026-11-21 | Zod обновлён до 4.6.7; `deepmerge-ts` 8.0.2; `pnpm audit --prod` — 0 известных уязвимостей; typecheck/unit 222/build PASS; integration 36/5 на изолированной схеме PASS |
 
 ## 14. Исправление критических дефектов (2026-11-19)
 

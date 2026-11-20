@@ -34,7 +34,7 @@
 | Prisma / @prisma/client | 6.19.3                          |
 | PostgreSQL              | 16.16 (`postgres:16.16-alpine`) |
 | Auth.js (next-auth)     | 5.0.0-beta.32                   |
-| Zod                     | 3.25.76                         |
+| Zod                     | 4.6.7                           |
 | Tailwind CSS            | 3.4.19                          |
 | bcryptjs                | 3.0.3                           |
 | ESLint                  | 9.39.5                          |
@@ -229,7 +229,7 @@ CI: `.github/workflows/ci.yml` (push/PR) и `.github/workflows/e2e.yml` (`workfl
 - Реальный n8n + Telegram runtime не проверен (нет credentials/Docker); workflow — draft для импорта.
 - n8n 1.x EOL 2026-12-31; возможен переход на 2.x/3.x только после согласования.
 - Outbox — eventual delivery; `SENT` без callback требует ручной сверки; нет exactly-once для Telegram.
-- `pnpm audit --prod`: остаются **2 high** в транзитивных зависимостях (`zod@3`, `deepmerge-ts`); совместимые patch/minor исправления `postcss` и `effect` применены через pnpm overrides. Обновление zod/deepmerge-ts требует major и согласования (см. `docs/SECURITY.md`).
+- `pnpm audit --prod`: **0 известных уязвимостей**; `zod@4.6.7`, `deepmerge-ts@8.0.2`, `postcss` и `effect` зафиксированы (см. `docs/SECURITY.md`).
 - `AI_PROVIDER=mock` допустим только в разработке/тестах (`ALLOW_MOCK_AI=true`); в production запрещён.
 - Auth.js v5 только в точной beta-версии `5.0.0-beta.32`.
 - POST `/api/webhooks/lead-created` отсутствует; только `POST /api/webhooks/n8n`.

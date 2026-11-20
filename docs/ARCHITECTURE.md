@@ -66,7 +66,7 @@ BizPilot AI — single-tenant (фактически) SaaS-приложение �
 | next-auth                | 5.0.0-beta.32 | Auth.js v5, Credentials, JWT |
 | @prisma/client           | 6.19.3        | ORM                          |
 | prisma                   | 6.19.3        | CLI, migrations, seed        |
-| zod                      | 3.25.76       | валидация                    |
+| zod                      | 4.6.7         | валидация                    |
 | bcryptjs                 | 3.0.3         | хеширование паролей          |
 | tailwindcss              | 3.4.19        | стили                        |
 | tailwindcss-animate      | 1.0.7         | анимации shadcn/ui           |
@@ -865,7 +865,7 @@ Settings: read-only profile, automation status, integrations status, журна�
 
 В `docs/SECURITY.md` заполнена таблица `Проверка | Команда/метод | Результат | Замечания | Статус`:
 
-- `pnpm audit --prod` — 2 high (`zod@3`, `deepmerge-ts@7`); `postcss`/`effect` исправлены overrides;
+- `pnpm audit --prod` — 0 известных уязвимостей (`zod@4.6.7`, `deepmerge-ts@8.0.2`); `postcss`/`effect` также закреплены overrides;
 - secret scan gitleaks по исходникам и всей Git-истории — 0 находок;
 - OWASP-oriented проход: IDOR/BOLA (integration-тесты), SQLi, XSS, CSRF, auth bypass, role bypass, rate-limit bypass, HMAC/replay, secret exposure, error handling;
 - `.env` в `.gitignore`, примеры без секретов;
@@ -1034,7 +1034,7 @@ CI не вызывает реальный LLM. Docker job использует �
 1. **Docker и Docker Compose не установлены локально.** `docker` отсутствует в PATH; Docker Desktop/WSL2 не установлены. Compose runtime локально не проверен; проверка добавлена в CI job `docker`. Требуется решение пользователя для локальной Docker-приёмки.
 2. **Локальный PostgreSQL 16 работает** и используется для миграций, seed, API, integration- и E2E-проверок. `psql` в PATH может отсутствовать, но сервер доступен по `DATABASE_URL`.
 3. **8 GB RAM.** Docker Desktop + PostgreSQL + n8n + Next build могут быть медленными; риск таймаутов, не блокер.
-4. **`pnpm audit --prod`:** 2 high остаются (`zod@3`, транзитивный `deepmerge-ts`); исправления требуют major-обновлений и согласования. `postcss` и `effect` исправлены overrides.
+4. **`pnpm audit --prod`:** 0 известных уязвимостей после обновления `zod` до 4.6.7 и override `deepmerge-ts` 8.0.2; `postcss` и `effect` также закреплены overrides.
 
 ### 17.2. Риски версий
 
