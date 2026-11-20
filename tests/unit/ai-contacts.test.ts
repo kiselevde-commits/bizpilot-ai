@@ -65,6 +65,20 @@ describe("filterExtractedContacts", () => {
     expect(result.phone).toBeNull();
   });
 
+  it("находит phone, даже если в тексте есть другие числа", () => {
+    const source = "Бюджет 300 000 руб., срок 2 недели. Контакт: Иван Иванов, +7 999 000-11-22.";
+
+    const result = filterExtractedContacts(source, {
+      name: "Иван Иванов",
+      company: null,
+      email: null,
+      phone: "+79990001122",
+    });
+
+    expect(result.name).toBe("Иван Иванов");
+    expect(result.phone).toBe("+79990001122");
+  });
+
   it("обнуляет пустые и null значения", () => {
     const result = filterExtractedContacts("Текст заявки", {
       name: "  ",

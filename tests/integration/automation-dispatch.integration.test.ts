@@ -66,11 +66,11 @@ async function createEvent(
 }
 
 beforeAll(async () => {
-  const workspace = await prisma.workspace.findFirst({ select: { id: true } });
-
-  if (!workspace) {
-    throw new Error("Integration test requires a seeded Workspace. Run `pnpm prisma:seed` first.");
-  }
+  // Isolate this file from seed/demo/API-smoke data: all events belong to a
+  // dedicated workspace created here and removed in afterAll.
+  const workspace = await prisma.workspace.create({
+    data: { name: "Outbox Integration", slug: `outbox-integration-${randomUUID()}` },
+  });
 
   workspaceId = workspace.id;
 });
@@ -100,6 +100,11 @@ afterEach(async () => {
 });
 
 afterAll(async () => {
+  if (workspaceId) {
+    await prisma.automationEvent.deleteMany({ where: { workspaceId } });
+    await prisma.workspace.deleteMany({ where: { id: workspaceId } });
+  }
+
   await prisma.$disconnect();
 });
 
@@ -134,8 +139,8 @@ describe("outbox dispatcher against PostgreSQL", () => {
     const { client, sendEvent } = makeClient();
 
     await Promise.all([
-      dispatchPendingEvents({ client, config: CONFIG, limit: 10 }),
-      dispatchPendingEvents({ client, config: CONFIG, limit: 10 }),
+      dispatchPendingEvents({ client, config: CONFIG, limit: 10, workspaceId }),
+      dispatchPendingEvents({ client, config: CONFIG, limit: 10, workspaceId }),
     ]);
 
     const stored = await prisma.automationEvent.findMany({

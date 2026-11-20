@@ -77,7 +77,7 @@ test.describe("Сценарий A — CRM", () => {
     await page.getByRole("button", { name: "Создать контакт" }).click();
 
     await expect(page).toHaveURL(/\/crm\/[0-9a-f-]{36}$/, { timeout: 30_000 });
-    await expect(page.getByRole("heading", { level: 1, name: contactName })).toBeVisible();
+    await expect(page.getByText(contactName, { exact: true })).toBeVisible();
     // Link the contact to the lead through the lead edit form
     await page.goto(`/leads/${leadId}/edit`);
     await expect(page.getByLabel("Название заявки")).toHaveValue(leadTitle);
@@ -119,6 +119,20 @@ test.describe("Сценарий A — CRM", () => {
 
     await expect(page).toHaveURL(/\/leads$/, { timeout: 30_000 });
     await expect(page.getByRole("link", { name: `E2E Оператор ${suffix}` })).toBeVisible();
+
+    // Server-side role checks: OPERATOR cannot delete a lead or read automation.
+    const leadHref = await page
+      .getByRole("link", { name: `E2E Оператор ${suffix}` })
+      .getAttribute("href");
+    const operatorLeadId = leadHref?.split("/").pop() ?? "";
+
+    const deleteResponse = await page.request.delete(`/api/leads/${operatorLeadId}`, {
+      headers: { Origin: "http://localhost:3000" },
+    });
+    expect(deleteResponse.status()).toBe(403);
+
+    const automationResponse = await page.request.get("/api/automation/events");
+    expect(automationResponse.status()).toBe(403);
 
     // Automation journal is ADMIN/MANAGER only
     await page.goto("/settings");

@@ -19,6 +19,21 @@ test.describe("Аутентификация", () => {
     await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fleads/);
   });
 
+  test("API без сессии возвращает 401 в едином envelope", async ({ request }) => {
+    const response = await request.get("/api/leads");
+
+    expect(response.status()).toBe(401);
+    const payload = (await response.json()) as {
+      success: boolean;
+      data: unknown;
+      error?: { code?: string };
+    };
+
+    expect(payload.success).toBe(false);
+    expect(payload.data).toBeNull();
+    expect(payload.error?.code).toBe("UNAUTHORIZED");
+  });
+
   test("ADMIN входит, видит навигацию и выходит", async ({ page }) => {
     await login(page, "ADMIN");
 

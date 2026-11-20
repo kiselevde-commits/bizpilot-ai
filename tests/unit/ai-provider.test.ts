@@ -153,6 +153,34 @@ describe("MockAIProvider", () => {
       expect(result.result.summary).toContain(text.length.toString());
     });
 
+    it("извлекает email и телефон, если они есть в тексте", async () => {
+      const text =
+        "Нужна интеграция. Контакт: Иван Иванов, ivan@example.com, +7 999 000-11-22.";
+
+      const result = await provider.analyze({
+        text,
+        systemPrompt: "system",
+        maxOutputTokens: 4000,
+      });
+
+      expect(result.result.extractedContacts).toEqual({
+        name: null,
+        company: null,
+        email: "ivan@example.com",
+        phone: "+7 999 000-11-22",
+      });
+    });
+
+    it("не выдумывает контакты, если их нет в тексте", async () => {
+      const result = await provider.analyze({
+        text: "Заявка на автоматизацию процессов без контактов.",
+        systemPrompt: "system",
+        maxOutputTokens: 4000,
+      });
+
+      expect(result.result.extractedContacts).toBeUndefined();
+    });
+
     it("массивы не пустые и содержат строки", async () => {
       const result = await provider.analyze({
         text: "Текст",
