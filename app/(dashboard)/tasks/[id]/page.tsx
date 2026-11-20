@@ -1,15 +1,15 @@
 import "server-only";
+import { notFound } from "next/navigation";
+import Link from "next/link";
 import { getTask } from "@/services/task.service";
 import { requireUser } from "@/lib/auth/session";
-import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/layout/page-header";
-import { Card } from "@/components/ui/card";
-import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import {
-  TASK_STATUS_LABELS,
   PRIORITY_LABELS,
+  TASK_STATUS_LABELS,
   formatDateTime,
 } from "@/lib/utils/labels";
 
@@ -17,15 +17,15 @@ type TaskDetail = {
   id: string;
   title: string;
   description: string | null;
-  status: string;
-  priority: string;
+  status: keyof typeof TASK_STATUS_LABELS;
+  priority: keyof typeof PRIORITY_LABELS;
   dueDate: Date | null;
   leadId: string | null;
   contactId: string | null;
   assignedToId: string | null;
   lead: { id: string; title: string } | null;
   contact: { id: string; name: string } | null;
-  assignedTo: { name: string } | null;
+  assignedTo: { id: string; name: string } | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -44,33 +44,40 @@ export default async function TaskDetailPage({
     notFound();
   }
 
+  const isOverdue =
+    task.dueDate !== null &&
+    new Date(task.dueDate).getTime() < Date.now() &&
+    task.status !== "DONE" &&
+    task.status !== "CANCELLED";
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Задача"
-        description={task.title}
+        title={task.title}
+        description={`Задача #${task.id.slice(-6)}`}
         actions={
-          <div className="flex items-center gap-2">
-            <Link
-              href={`/tasks/${task.id}/edit`}
-              className="text-sm text-primary hover:underline"
-            >
+          <Link href={`/tasks/${task.id}/edit`}>
+            <Button variant="outline" size="sm">
               Редактировать
-            </Link>
-          </div>
+            </Button>
+          </Link>
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <InfoCard title="Статус">
-          <Badge variant="secondary">
-            {TASK_STATUS_LABELS[task.status as keyof typeof TASK_STATUS_LABELS] || task.status}
-          </Badge>
+          <Badge variant="secondary">{TASK_STATUS_LABELS[task.status]}</Badge>
         </InfoCard>
         <InfoCard title="Приоритет">
-          <Badge variant="outline">
-            {PRIORITY_LABELS[task.priority as keyof typeof PRIORITY_LABELS]}
-          </Badge>
+          <Badge variant="outline">{PRIORITY_LABELS[task.priority]}</Badge>
+        </InfoCard>
+        <InfoCard title="Срок">
+          <span className="text-sm">{task.dueDate ? formatDateTime(task.dueDate) : "Не установлен"}</span>
+          {isOverdue ? (
+            <Badge variant="destructive" className="ml-2">
+              Просрочена
+            </Badge>
+          ) : null}
         </InfoCard>
         <InfoCard title="Заявка">
           {task.lead ? (
@@ -81,7 +88,7 @@ export default async function TaskDetailPage({
               {task.lead.title}
             </Link>
           ) : (
-            <span className="text-sm text-muted-foreground">—</span>
+            <span className="text-sm text-muted-foreground">Не связана</span>
           )}
         </InfoCard>
         <InfoCard title="Контакт">
@@ -93,22 +100,15 @@ export default async function TaskDetailPage({
               {task.contact.name}
             </Link>
           ) : (
-            <span className="text-sm text-muted-foreground">—</span>
+            <span className="text-sm text-muted-foreground">Не связан</span>
           )}
         </InfoCard>
         <InfoCard title="Ответственный">
-          <span className="text-sm text-muted-foreground">
-            {task.assignedTo?.name || "—"}
-          </span>
-        </InfoCard>
-        <InfoCard title="Срок">
-          <span className="text-sm text-muted-foreground">
-            {task.dueDate ? formatDateTime(task.dueDate) : "Не установлен"}
-          </span>
+          <span className="text-sm">{task.assignedTo?.name || "Не назначен"}</span>
         </InfoCard>
       </div>
 
-      {task.description && (
+      {task.description ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Описание</CardTitle>
@@ -117,20 +117,11 @@ export default async function TaskDetailPage({
             {task.description}
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
-      <div className="flex items-center justify-between">
-        <div className="text-xs text-muted-foreground">
-          Создана {formatDateTime(task.createdAt)} ·
-          Обновлена {formatDateTime(task.updatedAt)}
-        </div>
-        <Link
-          href={`/tasks/${task.id}/edit`}
-          className="text-sm text-primary hover:underline"
-        >
-          Редактировать
-        </Link>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Создана {formatDateTime(task.createdAt)} · Обновлена {formatDateTime(task.updatedAt)}
+      </p>
     </div>
   );
 }
@@ -138,8 +129,8 @@ export default async function TaskDetailPage({
 function InfoCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </CardTitle>
       </CardHeader>

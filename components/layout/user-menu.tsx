@@ -28,7 +28,11 @@ export function UserMenu({ user }: { user: SessionUser }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="h-10 gap-2 px-2">
+        <Button
+          variant="ghost"
+          className="h-10 gap-2 px-2"
+          aria-label="Меню пользователя"
+        >
           <Avatar>
             <AvatarFallback>{initials(user.name)}</AvatarFallback>
           </Avatar>
