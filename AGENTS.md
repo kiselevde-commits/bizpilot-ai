@@ -1,101 +1,95 @@
-# AGENTS.md — BizPilot AI
+# BizPilot AI — Agent Rules
 
-Обязательные правила для AI-агентов и разработчиков репозитория.
+## 1. Product
+BizPilot AI is a premium CRM workspace with AI-assisted lead analysis and optional n8n automation.
+Priority: reliable business workflows, security, maintainability and professional UX.
 
-## 1. Продукт и качество
+## 2. Token efficiency
+- Read only files relevant to the current task.
+- Read relevant sections of docs, not entire documents by default.
+- Never repeat completed audits or checks without a reason.
+- Avoid dumping large files, logs or command output.
+- Prefer targeted searches and minimal diffs.
+- Do not create unnecessary plans, reports or documentation.
+- Keep final reports concise and factual.
 
-BizPilot AI — рабочая CRM/SaaS-платформа для Leads, Contacts, Tasks и бизнес-процессов с реальным LLM и n8n. Основной сценарий: заявка → AI-анализ → подтверждение человеком → CRM/задача → уведомление. Повторная обработка не создаёт дубли.
+## 3. Architecture
+Three layers:
+- Presentation: app/, components/.
+- Application: services/ and use-case orchestration.
+- Infrastructure: Prisma, database, AI and integrations in lib/.
 
-Это не макет: запрещены фиктивные кнопки, статические AI-ответы в рабочем режиме и имитация интеграций. Цель — надёжный, законченный продукт портфолио-коммерческого качества.
+Rules:
+- No separate domain/ layer.
+- Business logic belongs in services, not Route Handlers or UI.
+- Follow existing project patterns.
+- Avoid duplication and unnecessary abstractions.
+- Do not rewrite working code to satisfy personal preferences.
 
-## 2. Источники истины
+## 4. Security — mandatory
+- Derive user and workspace identity from the server session.
+- Never trust workspaceId, role or ownership supplied by clients.
+- Scope every business-data query and mutation to the current workspace.
+- Validate linked entities on create and update.
+- Filter relations on reads; never expose cross-workspace data or foreign IDs.
+- Deletion must not modify another workspace, including through database FK actions.
+- Check authorization and role permissions server-side.
+- Validate input with Zod.
+- Keep secrets server-side; never log or expose them.
+- Preserve API response conventions and error handling.
+- Do not weaken auth, CSRF, rate limits, HMAC or replay protection.
 
-- Точные версии стека, структура данных и архитектурные решения: `docs/ARCHITECTURE.md`, `package.json`, `pnpm-lock.yaml`.
-- API-контракты: `docs/API.md`; безопасность: `docs/SECURITY.md`; n8n: `docs/N8N.md`.
-- Развёртывание: `docs/DEPLOYMENT.md`; этапы и фактический прогресс: `docs/IMPLEMENTATION_PLAN.md`.
-- Не дублируй подробные таблицы версий, API, команды и протоколы в этом файле.
-- Не меняй major-версии, стек или архитектуру; не добавляй зависимости без обоснования и согласования. Не используй Docker-тег `latest`.
+Detailed rules: docs/SECURITY.md, docs/API.md, docs/ARCHITECTURE.md.
 
-## 3. Архитектура
+## 5. Database
+- Use existing Prisma models and migration conventions.
+- Never modify schema or add migrations without a real requirement.
+- No destructive DB operations without explicit approval.
+- Integration tests must use an isolated test database/schema.
+- Never run destructive or isolation tests against dev/seed/production data.
+- Preserve workspace isolation in queries, relations and transactions.
 
-Используются ровно три слоя; `domain/` не создавать:
-1. Presentation — `app/`, `components/`.
-2. Application — `services/` и чистые модули `lib/`.
-3. Infrastructure — `lib/database`, `lib/ai`, `lib/integrations`, `lib/security`.
+## 6. AI
+- Use the existing provider abstraction and server-side credentials.
+- Validate all provider output with Zod.
+- Treat user text as untrusted input.
+- Never invent contacts or facts; extracted data must be supported by source text.
+- Preserve AI history and error handling.
+- Applying AI results always requires explicit user confirmation.
+- Never send messages or perform external actions automatically.
+- Do not change provider, model or prompts unless the task requires it.
 
-Бизнес-логика не размещается в React. Route Handler: auth → validation → service → единый ответ. Сервисы не импортируют React. PostgreSQL — источник истины; AI не имеет прямого доступа к БД и не выполняет SQL/команды. Сбой n8n не ломает CRM.
+## 7. Automation
+- n8n is optional; CRM must work without it.
+- Preserve outbox, idempotency, HMAC, timestamp validation and retry behavior.
+- Never log integration secrets.
+- Do not fake successful external delivery.
 
-## 4. Код и валидация
+Detailed rules: docs/N8N.md and docs/SECURITY.md.
 
-- Соблюдай строгий TypeScript (`strict`, `noUncheckedIndexedAccess`, `noImplicitOverride`); избегай `any`, `@ts-ignore` и небезопасных cast.
-- Неизвестные данные — `unknown` + Zod. Валидируй все внешние границы: HTTP, AI и webhook.
-- Публичные функции сервисов имеют явные типы. Server-only модули помечай `import "server-only"`; секреты/Prisma не попадают в client bundle.
-- Runtime-константы, Prisma enum и Zod-схемы должны совпадать; соответствие покрывай тестом.
+## 8. UI and design
+Design direction: Premium Intelligent SaaS, light-first.
+- Use the existing shared design tokens and components.
+- Use Lucide icons; no decorative emoji in UI.
+- Keep glass effects subtle and limited to appropriate controls.
+- Prioritize hierarchy, contrast, readability and useful information density.
+- Keep desktop and mobile layouts usable.
+- Preserve all existing functionality and interaction states.
+- Do not change business logic during visual-only tasks.
 
-## 5. Данные и Prisma
+## 9. Changes and tests
+- Inspect relevant code before editing.
+- Make the smallest safe change.
+- Add or update tests for changed behavior.
+- Run only relevant checks; run broader checks when impact warrants it.
+- Never claim a test passed unless it was executed.
+- Update docs only when behavior, API, architecture or setup changes.
+- Keep docs/IMPLEMENTATION_PLAN.md accurate.
 
-- Схема: `prisma/schema.prisma`. Изменения — только через миграции; `prisma db push` в production запрещён. Production/CI применяет проверенные миграции через `prisma migrate deploy`.
-- Seed (`prisma/seed.ts`) идемпотентен и требует `SEED_ADMIN_PASSWORD`; дефолтные пароли запрещены.
-- Бизнес-данные всегда ограничивай `workspaceId` текущего пользователя. Не принимай `workspaceId` из body/query/header; проверяй, что связанные записи принадлежат одному Workspace.
-- Соблюдай FK, индексы, аудит-поля и правила удаления из schema/`docs/ARCHITECTURE.md`; не добавляй cascade без согласования.
-- `n8n_processed` — отдельная SQL-таблица/миграция, не Prisma-модель.
-
-## 6. API, auth и роли
-
-- Единый envelope: успех `{ success: true, data, error: null }`; ошибка `{ success: false, data: null, error: { code, message } }`.
-- Бизнес-endpoints требуют серверных auth, role check и Workspace scope. Middleware и скрытие кнопок не заменяют серверную проверку.
-- Загружай актуального пользователя/роль из БД; JWT не источник истины для роли. Объекты ищи по `id + workspaceId`; чужие записи не раскрывай.
-- Списки используют согласованные pagination/filter и allow-list сортировки. Ошибки не раскрывают stack, SQL, секреты, prompt или raw provider response.
-- Cookie-auth mutations защищай Origin/CSRF. Внешние webhook используют отдельную HMAC-аутентификацию, не пользовательскую сессию.
-- Соблюдай матрицу ADMIN/MANAGER/OPERATOR из `docs/ARCHITECTURE.md`. Endpoint `POST /api/webhooks/lead-created` не создавать.
-
-## 7. AI
-
-- Используй существующий OpenAI-compatible adapter и ENV; API-ключ доступен только серверу.
-- Mock допустим только в тестах/E2E при `ALLOW_MOCK_AI=true`; в production mock и автоматический fallback запрещены.
-- Каждый ответ модели валидируй Zod. Пользовательский текст — недоверенные данные; AI не выполняет действия и не меняет Lead до явного подтверждения отдельным endpoint/транзакцией.
-- Контакты извлекай только из явно присутствующих в исходном тексте значений; выдуманные значения отбрасывай.
-- Не сохраняй полный prompt/raw response и не логируй тексты заявок, email/phone, токены или секреты.
-- Реальный LLM smoke test запускается отдельно через `scripts/test-ai.ts`, не в CI.
-
-## 8. n8n и интеграции
-
-- n8n необязателен: CRM работает и без него. Lead и AutomationEvent создаются атомарно в одной Prisma-транзакции; надёжность обеспечивает PostgreSQL Outbox.
-- Сохраняй идемпотентность. Webhook подписывай HMAC + timestamp, сравнивай подписи constant-time и проверяй исходные байты raw body.
-- n8n получает отдельную PostgreSQL-роль с минимальными правами только на `n8n_processed`, без доступа к CRM.
-- Telegram в MVP используется для уведомлений; автоматическую отправку сообщений клиентам не реализовывать.
-- Протоколы, заголовки, состояния, retry и дедупликация подробно описаны в `docs/N8N.md`/`docs/SECURITY.md`.
-
-## 9. Безопасность
-
-- Секреты — только в локальном ENV/защищённых credentials, никогда в коде, Git, workflow JSON, client bundle или логах. `.env` исключён из Git; example-файлы содержат только заглушки.
-- Не выводи секреты и содержимое `.env` в терминал/отчёты. Пароли хешируй bcryptjs cost 12.
-- Соблюдай body limits, rate limits, Origin/CSRF, параметризованный SQL и безопасную обработку ошибок. Raw SQL — только с параметрами.
-- Не включай `trust`, не ослабляй auth и не обходи права ради теста. Риски и ограничения MVP фиксируй в `docs/SECURITY.md`.
-
-## 10. Тестирование и отчётность
-
-- Новая бизнес-логика покрывается тестами, включая права и Workspace scope. Используй существующие Vitest unit/integration и Playwright E2E.
-- Mock-тест не заменяет реальный AI smoke test или проверку внешней интеграции.
-- Запускай релевантные проверки после изменений; полный набор — на контрольных этапах/перед релизом. Не повторяй успешные проверки без причины.
-- Указывай `PASS` только после фактического запуска. Разделяй `PASS`, `FAIL`, `BLOCKED`, `NOT RUN`; называй команду и реальный результат.
-
-## 11. Рабочий процесс и Git
-
-- Не проводи полный повторный аудит для локальной задачи. Читай только относящиеся к задаче файлы и разделы документации; не пересказывай агенту весь проект.
-- Исправляй конкретную задачу, проверяй diff и запускай релевантные тесты. Обновляй `docs/IMPLEMENTATION_PLAN.md`; профильную документацию — при изменении соответствующего контракта/поведения.
-- Добавляй только файлы текущей задачи; не используй `git add .` без проверки состава. Не включай `.env`, секреты, локальные helper-файлы и временные артефакты.
-- Делай небольшие осмысленные коммиты после логически завершённой части и успешных релевантных проверок.
-- Не выполняй `git push`, destructive Git-команды, production migrations или изменения внешней инфраструктуры без явного разрешения.
-- Не удаляй существующую функциональность и не меняй стек/архитектуру без согласования.
-
-## 12. Документация
-
-Документация — часть приёмки. Поддерживай её актуальной, не дублируя здесь подробности:
-- `README.md` — продукт и запуск.
-- `docs/ARCHITECTURE.md` — стек, слои, данные и архитектурные решения.
-- `docs/API.md` — endpoints и контракты.
-- `docs/SECURITY.md` — роли, защита и риски.
-- `docs/N8N.md` — Outbox, HMAC, idempotency, retry и workflow.
-- `docs/DEPLOYMENT.md` — окружение и развёртывание.
-- `docs/IMPLEMENTATION_PLAN.md` — этапы, фактические проверки и следующий шаг.
+## 10. Git and completion
+- Check git status before editing.
+- Preserve all existing user changes and uncommitted work.
+- Never use git add . .
+- Never reset, clean, discard or rewrite history without explicit approval.
+- Never commit or push unless explicitly requested.
+- Report changed files, checks actually run and remaining blockers.
