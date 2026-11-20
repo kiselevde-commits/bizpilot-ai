@@ -533,9 +533,14 @@ JWT содержит `sub`, `role`, `workspaceId` для UI/middleware. Серв
 
 - Любая выборка: `where: { id, workspaceId }`; чужая запись → 404, не 403 (не раскрывать существование).
 - Запись связей: `Lead.contactId`, `Lead.assignedToId`, `Task.leadId`, `Task.contactId`, `Task.assignedToId` проверяются на тот же Workspace. Несуществующий и чужой ID дают одинаковый 404.
+- Чтение связей: `contact`, `assignedTo`, `lead` загружаются с `where: { workspaceId: user.workspaceId }`. Для to-one чужая/битая связь возвращается как `null`, для to-many (`Lead.tasks`, `Contact.leads`, `Contact.tasks`, вложенный `Task.assignedTo`) — как отфильтрованный массив. Родительская запись своего Workspace остаётся доступной.
 - `assignedToId` должен быть пользователем того же Workspace.
 - Дубли контактов — только внутри Workspace.
-- Тесты: пользователь A не читает/не меняет/не удаляет данные Workspace B.
+- Исторические данные: write/read-проверки не исправляют уже существующие cross-workspace связи. Read-only `scripts/audit-workspace-relations.ts` считает `correct`, `crossWorkspace`, `missing` и `unset` по пяти связям, не выбирая имена, email, телефоны или тексты. Аудит целевой БД не выполнялся; запускать только по разрешению.
+- Удаление Lead: `Task.leadId` имеет `ON DELETE SET NULL`. Если с Lead связана Task другого Workspace, `deleteLead` возвращает общий 409 до `updateMany`, ActivityLog и удаления. Свои задачи отвязываются, чужие не изменяются.
+- `createdBy`/`updatedBy` выставляются сервером из сессии; historical audit охватывает пять relation-полей выше.
+- Полная Workspace isolation не заявляется, пока не выполнен аудит целевой БД и не устранены найденные cross-workspace строки.
+- Тесты: пользователь A не читает/не меняет/не удаляет данные Workspace B, включая связанные сущности.
 
 ## 9. API
 

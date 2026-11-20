@@ -111,6 +111,7 @@ export async function getContact(
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       leads: {
+        where: { workspaceId: user.workspaceId },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -121,6 +122,7 @@ export async function getContact(
         },
       },
       tasks: {
+        where: { workspaceId: user.workspaceId },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,

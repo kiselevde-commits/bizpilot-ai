@@ -89,20 +89,31 @@ export async function listLeads(user: SessionUser, query: LeadListQuery): Promis
     ];
   }
 
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.lead.findMany({
       where,
       orderBy: { [sortSpec.field]: sortSpec.direction },
       skip: (page - 1) * limit,
       take: limit,
       include: {
-        contact: { select: { id: true, name: true, email: true, phone: true } },
-        assignedTo: { select: { id: true, name: true, email: true } },
+        contact: {
+          where: { workspaceId: user.workspaceId },
+          select: { id: true, name: true, email: true, phone: true },
+        },
+        assignedTo: {
+          where: { workspaceId: user.workspaceId },
+          select: { id: true, name: true, email: true },
+        },
       },
     }),
     prisma.lead.count({ where }),
   ]);
 
+  const items = rows.map((lead) => ({
+    ...lead,
+    contactId: lead.contact ? lead.contactId : null,
+    assignedToId: lead.assignedTo ? lead.assignedToId : null,
+  }));
   const totalPages = Math.ceil(total / limit) || 0;
 
   return { items, pagination: { page, limit, total, totalPages } };
@@ -113,10 +124,11 @@ export async function getLead(user: SessionUser, id: string): Promise<Lead | nul
     throw new AppError("VALIDATION_ERROR", "Не указан ID заявки");
   }
 
-  return prisma.lead.findFirst({
+  const lead = await prisma.lead.findFirst({
     where: { id, workspaceId: user.workspaceId },
     include: {
       contact: {
+        where: { workspaceId: user.workspaceId },
         select: {
           id: true,
           name: true,
@@ -128,10 +140,14 @@ export async function getLead(user: SessionUser, id: string): Promise<Lead | nul
           status: true,
         },
       },
-      assignedTo: { select: { id: true, name: true, email: true, role: true } },
+      assignedTo: {
+        where: { workspaceId: user.workspaceId },
+        select: { id: true, name: true, email: true, role: true },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
       tasks: {
+        where: { workspaceId: user.workspaceId },
         orderBy: { createdAt: "desc" },
         select: {
           id: true,
@@ -139,7 +155,10 @@ export async function getLead(user: SessionUser, id: string): Promise<Lead | nul
           status: true,
           priority: true,
           dueDate: true,
-          assignedTo: { select: { id: true, name: true, email: true } },
+          assignedTo: {
+            where: { workspaceId: user.workspaceId },
+            select: { id: true, name: true, email: true },
+          },
         },
       },
       analyses: {
@@ -157,6 +176,16 @@ export async function getLead(user: SessionUser, id: string): Promise<Lead | nul
       },
     },
   });
+
+  if (!lead) {
+    return null;
+  }
+
+  return {
+    ...lead,
+    contactId: lead.contact ? lead.contactId : null,
+    assignedToId: lead.assignedTo ? lead.assignedToId : null,
+  };
 }
 
 export type LeadCreateInput = {
@@ -381,7 +410,6 @@ export async function updateLead(
 export async function deleteLead(user: SessionUser, id: string): Promise<void> {
   const existing = await prisma.lead.findFirst({
     where: { id, workspaceId: user.workspaceId },
-    include: { tasks: true },
   });
 
   if (!existing) {
@@ -389,8 +417,24 @@ export async function deleteLead(user: SessionUser, id: string): Promise<void> {
   }
 
   await prisma.$transaction(async (tx) => {
+    // Task.leadId uses ON DELETE SET NULL. A historical task from another
+    // Workspace would be changed by the database, so refuse the delete instead
+    // of mutating data outside the current Workspace.
+    const foreignTaskCount = await tx.task.count({
+      where: {
+        leadId: id,
+        workspaceId: { not: user.workspaceId },
+      },
+    });
+
+    if (foreignTaskCount > 0) {
+      throw new AppError("CONFLICT", "Невозможно безопасно удалить заявку", {
+        status: 409,
+      });
+    }
+
     await tx.task.updateMany({
-      where: { leadId: id },
+      where: { leadId: id, workspaceId: user.workspaceId },
       data: { leadId: null },
     });
 

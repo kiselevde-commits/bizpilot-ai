@@ -157,6 +157,9 @@ SELECT
 | `.gitignore` и env examples  | `git ls-files`, `git check-ignore`                           | `.env` не отслеживается | в Git только `.env.example` и `.env.docker.example` с `CHANGE_ME`                            | PASS    |
 | IDOR/BOLA и Workspace scope  | `tests/integration/workspace-isolation.integration.test.ts`  | 5 тестов               | A не читает/не перечисляет/не меняет/не удаляет записи B; API использует `requireUser`        | PASS    |
 | Workspace-связи Lead/Task    | `tests/unit/lead-task-workspace-relations.test.ts`           | 23 теста               | `contactId`/`leadId`/`assignedToId`: чужой или несуществующий → 404; `null` очищает; отказ без ActivityLog/Outbox | PASS    |
+| Read-time Workspace isolation | `tests/integration/workspace-read-isolation.integration.test.ts` | 12 тестов              | real PostgreSQL в изолированной схеме: чужие Contact/User/Lead/Task не попадают в list/get и HTTP JSON; свои записи доступны | PASS (isolated) |
+| Удаление Lead с legacy Task  | тот же integration-файл                                      | 3 теста                | чужой Task → 409 без частичных изменений; свой Task отвязывается (`leadId=NULL`); FK `ON DELETE SET NULL` учтён; HTTP 409 envelope | PASS (isolated) |
+| Исторический аудит связей    | `pnpm exec tsx scripts/audit-workspace-relations.ts`         | только counts          | инструмент проверен на временной схеме; на dev/seed и целевой БД не запускался; cross-workspace → exit 2 | PASS (tool) / NOT RUN (target) |
 | SQL injection                | статический поиск + integration                              | нет unsafe-вызовов     | нет `$queryRawUnsafe`/`$executeRawUnsafe`; raw SQL только tagged template                      | PASS    |
 | XSS                          | статический поиск                                            | нет опасных sink       | нет `dangerouslySetInnerHTML`/`innerHTML`; React экранирует; CSP не настроен                  | PASS    |
 | CSRF и Same-Origin           | unit `origin.test.ts`, E2E mutations                         | отклоняет чужой/пустой Origin | Auth.js CSRF + `assertSameOrigin` на cookie-auth mutations                              | PASS    |
@@ -193,6 +196,24 @@ SELECT
 - кнопка «Повторить» вызывает API, показывает toast, строка становится
   `Ожидает повтора`;
 - OPERATOR видит «Автоматизация недоступна» и не видит журнал.
+
+### 8.3. Границы гарантий мини-этапа 0.2
+
+- Write-path проверки (0.1) не позволяют создавать новые cross-workspace связи.
+- Read-path проверки (0.2) возвращают `null`/пустые массивы для уже существующих некорректных связей и не раскрывают чужие поля.
+- Исторические строки автоматически не исправляются и не удаляются. Аудит `scripts/audit-workspace-relations.ts` только считает связи; запуск на dev/seed/целевой БД требует отдельного разрешения.
+- `deleteLead` не полагается только на FK: при legacy Task другого Workspace удаление отклоняется с общим 409 до любых изменений.
+- Полная Workspace isolation не считается подтверждённой до аудита целевой БД и устранения найденных cross-workspace строк.
+- Integration-файл запускать только с `DATABASE_URL`, указывающим на изолированную БД/схему:
+  `DATABASE_URL=<isolated> pnpm exec vitest run tests/integration/workspace-read-isolation.integration.test.ts`.
+- Read-only аудит: `DATABASE_URL=<target> pnpm exec tsx scripts/audit-workspace-relations.ts`.
+- Windows PowerShell (bash-синтаксис `VAR=value command` не работает):
+  ```powershell
+  $env:DATABASE_URL = "postgresql://<user>:<password>@<host>:5432/<target>?schema=public"
+  pnpm exec tsx scripts/audit-workspace-relations.ts
+  Remove-Item Env:DATABASE_URL
+  ```
+  Для integration-файла — та же схема с `pnpm exec vitest run tests/integration/workspace-read-isolation.integration.test.ts`.
 
 ## 9. `pnpm audit --prod` (фактический результат)
 

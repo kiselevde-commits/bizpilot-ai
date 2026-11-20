@@ -139,12 +139,17 @@ Query `GET /api/leads`: `page`, `limit`, `search`, `status`, `priority`,
 `404 NOT_FOUND` без раскрытия существования записи. При `PATCH` отсутствующее
 поле не меняет связь, явный `null` очищает её.
 
+При чтении `contact`/`assignedTo` возвращаются только из текущего Workspace.
+Историческая некорректная связь даёт `null` в relation и в соответствующем
+scalar ID; `tasks` в карточке Lead также фильтруются по Workspace.
+
 `DELETE`:
 
 - `AIAnalysis` удаляется каскадом;
 - `Task.leadId` становится `NULL`;
 - `Contact` не удаляется;
-- `AutomationEvent` не имеет FK на Lead и сохраняется для аудита/доставки.
+- `AutomationEvent` не имеет FK на Lead и сохраняется для аудита/доставки;
+- при исторической Task другого Workspace удаление отклоняется с `409 CONFLICT` до любых изменений; чужие задачи не изменяются.
 
 ## 4. Contacts
 
@@ -163,6 +168,9 @@ Query: `page`, `limit`, `search`, `status`, `sort`.
 разрешён только после явного решения пользователя. Удаление связанного
 контакта — `409 ENTITY_IN_USE`.
 
+`GET /api/contacts/:id` возвращает `leads` и `tasks` только из текущего
+Workspace; исторические связи с чужими записями не раскрываются.
+
 ## 5. Tasks
 
 | Метод            | Path             | Роли                       |
@@ -180,6 +188,9 @@ Query: `page`, `limit`, `search`, `status`, `priority`, `assignedToId`,
 принадлежать текущему Workspace; несуществующий или чужой ID даёт
 `404 NOT_FOUND`. При `PATCH` отсутствующее поле не меняет связь, явный `null`
 очищает её.
+
+При чтении `lead`/`contact`/`assignedTo` возвращаются только из текущего
+Workspace; историческая некорректная связь даёт `null` в relation и scalar ID.
 
 ## 6. AI
 

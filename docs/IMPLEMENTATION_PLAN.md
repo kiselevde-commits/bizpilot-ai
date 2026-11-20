@@ -23,8 +23,11 @@
 | 4. Automation          | DONE (код/тесты) / BLOCKED (runtime)           | Outbox, HMAC, n8n_processed, retry, API, Settings UI, n8n draft workflow реализованы. Runtime n8n/Telegram и Docker — BLOCKED: нет credentials/Docker.                                                                              |
 | 5. Проверка и упаковка | DONE (локально) / BLOCKED (Docker, n8n) | Typecheck/lint/unit 199/integration 24/E2E 8/build PASS; реальный AI smoke PASS; gitleaks 0; audit 2 high; Docker runtime BLOCKED; CI workflows созданы. |
 | 0.1 Workspace Security Patch | DONE (локальные проверки) | Lead (`contactId`, `assignedToId`) и Task (`leadId`, `contactId`, `assignedToId`) проверяются на принадлежность текущему Workspace до записи; чужой/несуществующий ID → 404. 23 новых unit-теста; typecheck/lint PASS; integration NOT RUN (нет отдельной тестовой БД). |
+| 0.2 Workspace Read Isolation | DONE (локальные проверки) | Read includes фильтруются по Workspace; `deleteLead` отклоняет legacy чужой Task с 409; read-only audit script; 12 PostgreSQL integration-тестов на изолированной схеме; typecheck/lint PASS. Аудит целевой БД не запускался. |
 
-> Мини-этап 0.1 (write-path) выполнен локально и ожидает проверки пользователем.
+> Мини-этапы 0.1 (write-path) и 0.2 (read/delete/historical tooling) выполнены
+> локально и ожидают проверки пользователем. Полная Workspace isolation не
+> заявляется до аудита целевой БД и устранения исторических cross-workspace связей.
 >
 > Разделы 3–6 ниже — исторические записи этапов 1–4. Итоговые фактические
 > результаты этапа 5 и текущие ограничения — в разделе 7.
@@ -555,6 +558,7 @@ Compose runtime не заявляется как PASS.
 | 2026-11-20 | E2E: env-file replaced with Playwright-owned `.env` loader + mock AI override; AI и responsive сценарии; API 401/403 проверки |
 | 2026-11-20 | Integration: outbox test изолирован отдельной Workspace + `workspaceId` scope; flaky-тест стабилен (2 прогона) |
 | 2026-11-20 | Мини-этап 0.1: Workspace-проверка связей Lead/Task (`contactId`, `leadId`, `assignedToId`); 23 unit-теста, typecheck/lint PASS; integration NOT RUN (нет отдельной тестовой БД) |
+| 2026-11-20 | Мини-этап 0.2: read isolation для Lead/Task/Contact; `deleteLead` 409 при legacy чужом Task; read-only audit script; 12 PostgreSQL integration-тестов на изолированной схеме; target audit NOT RUN |
 
 ## 14. Исправление критических дефектов (2026-11-19)
 

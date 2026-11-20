@@ -108,22 +108,37 @@ export async function listTasks(
     ];
   }
 
-  const [items, total] = await Promise.all([
+  const [rows, total] = await Promise.all([
     prisma.task.findMany({
       where,
       orderBy: { [sortSpec.field]: sortSpec.direction },
       skip: (page - 1) * limit,
       take: limit,
       include: {
-        lead: { select: { id: true, title: true, status: true } },
-        contact: { select: { id: true, name: true, email: true, phone: true } },
-        assignedTo: { select: { id: true, name: true, email: true } },
+        lead: {
+          where: { workspaceId: user.workspaceId },
+          select: { id: true, title: true, status: true },
+        },
+        contact: {
+          where: { workspaceId: user.workspaceId },
+          select: { id: true, name: true, email: true, phone: true },
+        },
+        assignedTo: {
+          where: { workspaceId: user.workspaceId },
+          select: { id: true, name: true, email: true },
+        },
         createdBy: { select: { id: true, name: true, email: true } },
       },
     }),
     prisma.task.count({ where }),
   ]);
 
+  const items = rows.map((task) => ({
+    ...task,
+    leadId: task.lead ? task.leadId : null,
+    contactId: task.contact ? task.contactId : null,
+    assignedToId: task.assignedTo ? task.assignedToId : null,
+  }));
   const totalPages = Math.ceil(total / limit) || 0;
 
   return { items, pagination: { page, limit, total, totalPages } };
@@ -137,18 +152,36 @@ export async function getTask(
     throw new AppError("VALIDATION_ERROR", "Не указан ID задачи");
   }
 
-  return prisma.task.findFirst({
+  const task = await prisma.task.findFirst({
     where: { id, workspaceId: user.workspaceId },
     include: {
-      lead: { select: { id: true, title: true, status: true, priority: true } },
+      lead: {
+        where: { workspaceId: user.workspaceId },
+        select: { id: true, title: true, status: true, priority: true },
+      },
       contact: {
+        where: { workspaceId: user.workspaceId },
         select: { id: true, name: true, email: true, phone: true, status: true },
       },
-      assignedTo: { select: { id: true, name: true, email: true, role: true } },
+      assignedTo: {
+        where: { workspaceId: user.workspaceId },
+        select: { id: true, name: true, email: true, role: true },
+      },
       createdBy: { select: { id: true, name: true, email: true } },
       updatedBy: { select: { id: true, name: true, email: true } },
     },
   });
+
+  if (!task) {
+    return null;
+  }
+
+  return {
+    ...task,
+    leadId: task.lead ? task.leadId : null,
+    contactId: task.contact ? task.contactId : null,
+    assignedToId: task.assignedTo ? task.assignedToId : null,
+  };
 }
 
 export type TaskCreateInput = {
