@@ -113,6 +113,12 @@ describe("buildSystemPrompt", () => {
     const prompt = buildSystemPrompt();
     expect(prompt).toContain("Не меняй статус лида");
   });
+
+  it("запрашивает контактные данные, явно указанные в тексте заявки", () => {
+    const prompt = buildSystemPrompt();
+    expect(prompt).toContain("extractedContacts");
+    expect(prompt).toContain("Не выдумывай контакты");
+  });
 });
 
 describe("buildReplySystemPrompt", () => {

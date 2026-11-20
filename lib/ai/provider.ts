@@ -1,6 +1,7 @@
 import "server-only";
 import { AppError } from "@/lib/errors";
 import type { LeadCategoryValue, LeadIntentValue, PriorityValue } from "@/lib/constants";
+import type { ExtractedContacts } from "@/lib/ai/schema";
 
 export type AIAnalysisResult = {
   summary: string;
@@ -14,6 +15,7 @@ export type AIAnalysisResult = {
   recommendations: string[];
   risks: string[];
   missingInfo: string[];
+  extractedContacts?: ExtractedContacts | null;
 };
 
 export type GenerateReplyResult = {

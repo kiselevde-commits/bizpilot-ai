@@ -104,6 +104,69 @@ describe("AIService.analyze", () => {
       service.analyze({ text: "Текст", leadId: "missing-lead" }, mockUser),
     ).rejects.toMatchObject({ code: "NOT_FOUND" });
   });
+
+  it("отбрасывает выдуманные контакты и сохраняет отфильтрованный результат", async () => {
+    const service = new AIService({
+      name: "mock",
+      model: "mock",
+      analyze: vi.fn().mockResolvedValue({
+        result: {
+          summary: "Резюме заявки",
+          leadScore: 50,
+          category: "business_automation",
+          intent: "request",
+          priority: "MEDIUM",
+          scoreBreakdown: { relevance: 50 },
+          justification: "Недостаточно данных",
+          factors: [],
+          recommendations: [],
+          risks: [],
+          missingInfo: [],
+          extractedContacts: {
+            name: "Мария Петрова",
+            company: null,
+            email: "maria@hallucinated.example",
+            phone: "+79990001122",
+          },
+        },
+        tokensInput: 10,
+        tokensOutput: 5,
+      }),
+      generateReply: vi.fn().mockResolvedValue({
+        result: { draftReply: "Спасибо за заявку!" },
+        tokensInput: 10,
+        tokensOutput: 5,
+      }),
+    });
+    (prisma.lead.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: mockLeadId,
+    });
+
+    const result = await service.analyze(
+      { text: "Заявка без контактных данных", leadId: mockLeadId },
+      mockUser,
+    );
+
+    expect(result.analysis.extractedContacts?.name).toBeNull();
+    expect(result.analysis.extractedContacts?.email).toBeNull();
+    expect(result.analysis.extractedContacts?.phone).toBeNull();
+
+    const createCall = (prisma.aIAnalysis.create as ReturnType<typeof vi.fn>).mock.calls[0]?.[0];
+    expect(createCall?.data.resultJson).toEqual({
+      summary: "Резюме заявки",
+      leadScore: 50,
+      category: "business_automation",
+      intent: "request",
+      priority: "MEDIUM",
+      scoreBreakdown: { relevance: 50 },
+      justification: "Недостаточно данных",
+      factors: [],
+      recommendations: [],
+      risks: [],
+      missingInfo: [],
+      extractedContacts: { name: null, company: null, email: null, phone: null },
+    });
+  });
 });
 
 describe("AIService.generateReply", () => {

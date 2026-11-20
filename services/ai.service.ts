@@ -4,6 +4,7 @@ import { prisma } from "@/lib/database/prisma";
 import type { SessionUser } from "@/lib/auth/session";
 import { AppError } from "@/lib/errors";
 import type { AIAnalysisResult, AIProvider } from "@/lib/ai/provider";
+import { filterExtractedContacts } from "@/lib/ai/contacts";
 import {
   AIAnalysisResponseSchema,
   type AIAnalysisResponse,
@@ -150,13 +151,20 @@ export class AIService {
           });
         }
 
+        // Hallucinated contact data must never reach the interface or storage:
+        // keep only values that are really mentioned in the source text.
+        const analysis: AIAnalysisResult = {
+          ...parsed,
+          extractedContacts: filterExtractedContacts(input.text, parsed.extractedContacts),
+        };
+
         await this.saveAnalysis({
           user,
           leadId: input.leadId,
           provider: provider.name,
           model: this.getModel(),
           status: "SUCCESS",
-          resultJson: parsed,
+          resultJson: analysis,
           promptHash,
           tokensInput: providerResult.tokensInput ?? null,
           tokensOutput: providerResult.tokensOutput ?? null,
@@ -165,7 +173,7 @@ export class AIService {
         });
 
         return {
-          analysis: parsed,
+          analysis,
           rawResponse: parsed,
           tokensInput: providerResult.tokensInput ?? null,
           tokensOutput: providerResult.tokensOutput ?? null,

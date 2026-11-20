@@ -6,6 +6,25 @@ const MAX_SUMMARY_LENGTH = 300;
 const MAX_DRAFT_REPLY_LENGTH = 800;
 const MAX_LEAD_SCORE = 100;
 const MIN_LEAD_SCORE = 0;
+const MAX_CONTACT_FIELD_LENGTH = 200;
+const MAX_PHONE_LENGTH = 50;
+
+/**
+ * Contact data mentioned directly in the lead text.
+ *
+ * The model is instructed to return only values that occur in the text; the
+ * service additionally drops anything that cannot be found in the source
+ * (see `filterExtractedContacts`), so a hallucinated contact can never reach
+ * the user interface. The field is optional: older/other providers may omit it.
+ */
+export const ExtractedContactsSchema = z.object({
+  name: z.string().max(MAX_CONTACT_FIELD_LENGTH).nullable().optional(),
+  company: z.string().max(MAX_CONTACT_FIELD_LENGTH).nullable().optional(),
+  email: z.string().max(MAX_CONTACT_FIELD_LENGTH).nullable().optional(),
+  phone: z.string().max(MAX_PHONE_LENGTH).nullable().optional(),
+});
+
+export type ExtractedContacts = z.infer<typeof ExtractedContactsSchema>;
 
 export const AIAnalysisResponseSchema = z.object({
   summary: z.string().min(1).max(MAX_SUMMARY_LENGTH),
@@ -19,6 +38,7 @@ export const AIAnalysisResponseSchema = z.object({
   recommendations: z.array(z.string().max(200)).max(20),
   risks: z.array(z.string().max(200)).max(20),
   missingInfo: z.array(z.string().max(200)).max(20),
+  extractedContacts: ExtractedContactsSchema.optional(),
 });
 
 export type AIAnalysisResponse = z.infer<typeof AIAnalysisResponseSchema>;
