@@ -21,6 +21,12 @@ export type AppliedAnalysis = {
   recommendations?: string[];
   risks?: string[];
   missingInfo?: string[];
+  extractedContacts?: {
+    name?: string | null;
+    company?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
 };
 
 type AppliedResponse = {
@@ -79,6 +85,17 @@ export function AnalysisResult({
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const contactRows = analysis.extractedContacts
+    ? (
+        [
+          ["Имя", analysis.extractedContacts.name],
+          ["Компания", analysis.extractedContacts.company],
+          ["Email", analysis.extractedContacts.email],
+          ["Телефон", analysis.extractedContacts.phone],
+        ] as const
+      ).filter(([, value]) => typeof value === "string" && value.trim().length > 0)
+    : [];
 
   async function handleApply() {
     setApplying(true);
@@ -155,6 +172,25 @@ export function AnalysisResult({
             {analysis.summary}
           </p>
         </section>
+
+        {contactRows.length > 0 ? (
+          <section data-testid="ai-extracted-contacts">
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Контакты из текста
+            </h3>
+            <dl className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+              {contactRows.map(([label, value]) => (
+                <div key={label} className="flex gap-2">
+                  <dt className="shrink-0 text-muted-foreground">{label}:</dt>
+                  <dd className="break-all">{value}</dd>
+                </div>
+              ))}
+            </dl>
+            <p className="mt-2 text-xs text-muted-foreground">
+              Контакты не сохранены автоматически — проверьте их вручную.
+            </p>
+          </section>
+        ) : null}
 
         {analysis.justification ? (
           <section>

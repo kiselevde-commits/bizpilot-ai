@@ -16,9 +16,7 @@ import { formatDateTime } from "@/lib/utils/labels";
 type LeadOption = { id: string; title: string; message?: string };
 
 type HealthState =
-  | { status: "loading" }
-  | { status: "ready"; mode: string }
-  | { status: "error"; message: string };
+  { status: "loading" } | { status: "ready"; mode: string } | { status: "error"; message: string };
 
 type HistoryItem = {
   id: string;
@@ -210,12 +208,13 @@ export default function AIAssistantPage() {
         );
         setAnalysisWarning(
           values.length > 0
-            ? `AI нашёл контактные данные в тексте: ${values.join(", ")}. Они не сохраняются автоматически — проверьте контакты вручную.`
-            : "AI не обнаружил контактных данных в тексте заявки.",
+            ? "AI нашёл контактные данные в тексте. Они не сохраняются автоматически — проверьте контакты вручную."
+            : null,
         );
       }
 
       toast.success("AI-анализ завершён");
+      loadHistory(selectedLeadId);
     } catch (err) {
       const message = err instanceof Error ? err.message : "AI-анализ завершился ошибкой";
       setError(message);
@@ -430,7 +429,9 @@ export default function AIAssistantPage() {
             ) : historyState === "error" ? (
               <p className="text-sm text-destructive">Не удалось загрузить историю</p>
             ) : !selectedLeadId ? (
-              <p className="text-sm text-muted-foreground">Выберите заявку, чтобы увидеть историю.</p>
+              <p className="text-sm text-muted-foreground">
+                Выберите заявку, чтобы увидеть историю.
+              </p>
             ) : history.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Для этой заявки ещё не было запусков анализа.

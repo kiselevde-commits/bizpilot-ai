@@ -7,10 +7,7 @@ import { Card } from "@/components/ui/card";
 import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
-import {
-  CONTACT_STATUS_LABELS,
-  formatDateTime,
-} from "@/lib/utils/labels";
+import { CONTACT_STATUS_LABELS, formatDateTime } from "@/lib/utils/labels";
 
 type ContactDetail = {
   id: string;
@@ -47,10 +44,7 @@ export default async function ContactDetailPage({
         description={contact.name}
         actions={
           <div className="flex items-center gap-2">
-            <Link
-              href={`/crm/${contact.id}/edit`}
-              className="text-sm text-primary hover:underline"
-            >
+            <Link href={`/crm/${contact.id}/edit`} className="text-sm text-primary hover:underline">
               Редактировать
             </Link>
           </div>
@@ -60,37 +54,39 @@ export default async function ContactDetailPage({
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <InfoCard title="Статус">
           <Badge variant="secondary">
-            {CONTACT_STATUS_LABELS[contact.status as keyof typeof CONTACT_STATUS_LABELS] || contact.status}
+            {CONTACT_STATUS_LABELS[contact.status as keyof typeof CONTACT_STATUS_LABELS] ||
+              contact.status}
           </Badge>
         </InfoCard>
         <InfoCard title="Компания">
           <span className="text-sm text-muted-foreground">{contact.company || "—"}</span>
         </InfoCard>
         <InfoCard title="Email">
-          <a
-            href={`mailto:${contact.email}`}
-            className="text-sm text-primary hover:underline"
-          >
-            {contact.email || "—"}
-          </a>
+          {contact.email ? (
+            <a
+              href={`mailto:${contact.email}`}
+              className="break-all text-sm text-primary hover:underline"
+            >
+              {contact.email}
+            </a>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          )}
         </InfoCard>
         <InfoCard title="Телефон">
-          <a
-            href={`tel:${contact.phone}`}
-            className="text-sm text-primary hover:underline"
-          >
-            {contact.phone || "—"}
-          </a>
+          {contact.phone ? (
+            <a href={`tel:${contact.phone}`} className="text-sm text-primary hover:underline">
+              {contact.phone}
+            </a>
+          ) : (
+            <span className="text-sm text-muted-foreground">—</span>
+          )}
         </InfoCard>
         <InfoCard title="Создан">
-          <span className="text-sm text-muted-foreground">
-            {formatDateTime(contact.createdAt)}
-          </span>
+          <span className="text-sm text-muted-foreground">{formatDateTime(contact.createdAt)}</span>
         </InfoCard>
         <InfoCard title="Обновлён">
-          <span className="text-sm text-muted-foreground">
-            {formatDateTime(contact.updatedAt)}
-          </span>
+          <span className="text-sm text-muted-foreground">{formatDateTime(contact.updatedAt)}</span>
         </InfoCard>
       </div>
 
@@ -112,7 +108,10 @@ export default async function ContactDetailPage({
           </CardHeader>
           <CardContent className="space-y-3">
             {contact.leads.map((lead) => (
-              <div key={lead.id} className="flex items-center justify-between p-3 border rounded-lg">
+              <div
+                key={lead.id}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
                 <div>
                   <div className="text-sm font-medium">{lead.title}</div>
                   <div className="text-xs text-muted-foreground">
@@ -135,7 +134,10 @@ export default async function ContactDetailPage({
           </CardHeader>
           <CardContent className="space-y-3">
             {contact.tasks.map((task) => (
-              <div key={task.id} className="flex items-center justify-between p-3 border rounded-lg">
+              <div
+                key={task.id}
+                className="flex items-center justify-between rounded-lg border p-3"
+              >
                 <div>
                   <div className="text-sm font-medium">{task.title}</div>
                   <div className="text-xs text-muted-foreground">
@@ -158,7 +160,7 @@ function InfoCard({ title, children }: { title: string; children: React.ReactNod
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+        <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
           {title}
         </CardTitle>
       </CardHeader>

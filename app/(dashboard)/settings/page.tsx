@@ -382,63 +382,65 @@ function EventsCard({
           </div>
         ) : (
           <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Событие</TableHead>
-                  <TableHead className="text-center">Статус</TableHead>
-                  <TableHead className="text-center">Попытки</TableHead>
-                  <TableHead>Последняя попытка</TableHead>
-                  <TableHead>Ошибка</TableHead>
-                  <TableHead className="text-right">Действия</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {events.items.map((event) => (
-                  <TableRow key={event.id}>
-                    <TableCell>
-                      <Link
-                        href={`/leads/${event.entityId}`}
-                        className="font-medium hover:underline"
-                      >
-                        {readPayloadTitle(event.payload)}
-                      </Link>
-                      <p className="mt-1 font-mono text-xs text-muted-foreground">
-                        {event.idempotencyKey}
-                      </p>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <Badge variant={eventBadgeVariant(event.status)}>
-                        {AUTOMATION_STATUS_LABELS[event.status]}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center text-sm">{event.attempts}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      <p>{formatDateTime(event.updatedAt)}</p>
-                      {event.status === "RETRYING" && event.nextRetryAt ? (
-                        <p className="text-xs">Повтор: {formatDateTime(event.nextRetryAt)}</p>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="max-w-[260px] text-sm text-muted-foreground">
-                      <span className="line-clamp-2" title={event.lastError ?? undefined}>
-                        {event.lastError ?? "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {canRetry &&
-                      event.status === "FAILED" &&
-                      Date.now() - new Date(event.createdAt).getTime() < 24 * 60 * 60 * 1000 ? (
-                        <AutomationRetryButton eventId={event.id} />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">
-                          {event.status === "FAILED" ? "Срок истёк" : "—"}
-                        </span>
-                      )}
-                    </TableCell>
+            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Событие</TableHead>
+                    <TableHead className="text-center">Статус</TableHead>
+                    <TableHead className="text-center">Попытки</TableHead>
+                    <TableHead>Последняя попытка</TableHead>
+                    <TableHead>Ошибка</TableHead>
+                    <TableHead className="text-right">Действия</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {events.items.map((event) => (
+                    <TableRow key={event.id}>
+                      <TableCell>
+                        <Link
+                          href={`/leads/${event.entityId}`}
+                          className="font-medium hover:underline"
+                        >
+                          {readPayloadTitle(event.payload)}
+                        </Link>
+                        <p className="mt-1 font-mono text-xs text-muted-foreground">
+                          {event.idempotencyKey}
+                        </p>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge variant={eventBadgeVariant(event.status)}>
+                          {AUTOMATION_STATUS_LABELS[event.status]}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center text-sm">{event.attempts}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <p>{formatDateTime(event.updatedAt)}</p>
+                        {event.status === "RETRYING" && event.nextRetryAt ? (
+                          <p className="text-xs">Повтор: {formatDateTime(event.nextRetryAt)}</p>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="max-w-[260px] text-sm text-muted-foreground">
+                        <span className="line-clamp-2" title={event.lastError ?? undefined}>
+                          {event.lastError ?? "—"}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {canRetry &&
+                        event.status === "FAILED" &&
+                        Date.now() - new Date(event.createdAt).getTime() < 24 * 60 * 60 * 1000 ? (
+                          <AutomationRetryButton eventId={event.id} />
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {event.status === "FAILED" ? "Срок истёк" : "—"}
+                          </span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
 
             <EventsPagination
               page={events.pagination.page}

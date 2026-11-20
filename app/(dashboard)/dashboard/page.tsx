@@ -1,23 +1,34 @@
-import { getDashboardData } from "@/services/dashboard.service";
+import { getDashboardData, hasDemoData } from "@/services/dashboard.service";
 import { requireUser } from "@/lib/auth/session";
 import { queueAutomationDispatch } from "@/services/automation.service";
 import { PageHeader } from "@/components/layout/page-header";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default async function DashboardPage() {
   const user = await requireUser();
   queueAutomationDispatch();
-  const data = await getDashboardData(user);
+  const [data, demoData] = await Promise.all([getDashboardData(user), hasDemoData(user)]);
 
   return (
     <div className="space-y-6">
       <PageHeader title="Обзор" description="Ключевые показатели вашего рабочего пространства" />
 
+      {demoData ? (
+        <Alert data-testid="demo-data-banner">
+          <AlertTitle>Demo data</AlertTitle>
+          <AlertDescription>
+            Демонстрационное рабочее пространство. Заявки и задачи с префиксом{" "}
+            <span className="font-medium">[DEMO]</span> вымышлены и созданы seed-скриптом.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
           title="Всего заявок"
           value={data.metrics.totalLeads}
-          description="Новых: {data.metrics.newLeads}"
+          description={`Новых: ${data.metrics.newLeads}`}
           borderColor="border-blue-200"
           icon="📥"
         />
@@ -71,7 +82,7 @@ function MetricCard({
 }) {
   return (
     <Card className={borderColor}>
-      <CardHeader className="justify-space-between flex flex-row items-center py-3">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 py-3">
         <CardTitle className="text-sm font-medium">{title}</CardTitle>
         <span className="text-xs text-muted-foreground">{icon}</span>
       </CardHeader>
