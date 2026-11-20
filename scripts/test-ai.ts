@@ -2,10 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { buildAIProvider, AIProviderError, type AIProviderConfig } from "@/lib/ai/provider";
 import { AIAnalysisResponseSchema, GenerateReplyResponseSchema } from "@/lib/ai/schema";
 import { buildReplySystemPrompt, buildSystemPrompt, wrapUserInput } from "@/lib/ai/prompt";
+import { filterExtractedContacts } from "@/lib/ai/contacts";
 
 const SYNTHETIC_LEAD_TEXT =
   "Синтетическая заявка: компании нужен еженедельный отчёт по продажам с отправкой в Telegram. " +
-  "Бюджет 300 000 руб., срок — две недели. Персональных данных нет.";
+  "Бюджет 300 000 руб., срок — две недели. Контакт: Тестовый Клиент, test.lead@example.com, " +
+  "+7 900 000-00-00.";
 
 const REQUIRED_ENV = ["AI_BASE_URL", "AI_API_KEY", "AI_MODEL"] as const;
 
@@ -105,6 +107,38 @@ async function main(): Promise<void> {
       summary: analysis.data.summary,
       tokensInput: analyzeResult.tokensInput ?? null,
       tokensOutput: analyzeResult.tokensOutput ?? null,
+    }),
+  );
+
+  // `extractedContacts` is checked against the source text: the smoke passes
+  // only when the model does not invent contact data.
+  const rawContacts = analysis.data.extractedContacts;
+  const verifiedContacts = filterExtractedContacts(SYNTHETIC_LEAD_TEXT, rawContacts);
+  const contactFields = ["name", "company", "email", "phone"] as const;
+  const droppedFields = contactFields.filter((field) => {
+    const rawValue = rawContacts?.[field];
+
+    return (
+      typeof rawValue === "string" && rawValue.trim().length > 0 && verifiedContacts[field] === null
+    );
+  });
+
+  if (droppedFields.length > 0) {
+    console.error(
+      JSON.stringify({
+        check: "extracted-contacts",
+        verifiedAgainstSource: false,
+        hallucinatedFields: droppedFields,
+      }),
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    JSON.stringify({
+      check: "extracted-contacts",
+      verifiedAgainstSource: true,
+      present: contactFields.filter((field) => verifiedContacts[field] !== null),
     }),
   );
 

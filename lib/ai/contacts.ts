@@ -54,7 +54,7 @@ function verifyPhone(sourceDigits: string, value: string | null | undefined): st
     return null;
   }
 
-  if (sourceDigits !== digits) {
+  if (!sourceDigits.includes(digits)) {
     return null;
   }
 

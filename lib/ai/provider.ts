@@ -68,6 +68,32 @@ function parseJsonContent(content: string): unknown {
   }
 }
 
+/**
+ * Extracts contact data that is explicitly present in the text.
+ *
+ * Used by the mock provider so E2E tests exercise the same "contacts are only
+ * shown when they exist in the source" behaviour as a real model. The service
+ * re-checks every value against the source text before saving.
+ */
+function extractContactsFromText(text: string): ExtractedContacts | undefined {
+  const email = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.exec(text)?.[0] ?? null;
+
+  const phone =
+    text
+      .match(/\+?\d[\d\s()\-]{8,}\d/g)
+      ?.map((candidate) => candidate.trim())
+      .find((candidate) => {
+        const digits = candidate.replace(/\D/g, "");
+        return digits.length >= 10 && digits.length <= 15;
+      }) ?? null;
+
+  if (!email && !phone) {
+    return undefined;
+  }
+
+  return { name: null, company: null, email, phone };
+}
+
 export function buildAIProvider(config: AIProviderConfig, mock: boolean): AIProvider {
   if (mock) {
     return new MockAIProvider();
@@ -104,6 +130,7 @@ export class MockAIProvider implements AIProvider {
         recommendations: ["Связаться с клиентом", "Уточнить требования"],
         risks: ["Недостаточно данных для точной оценки"],
         missingInfo: ["Контактное лицо", "Бюджет"],
+        extractedContacts: extractContactsFromText(input.text),
       },
       tokensInput: Math.ceil(input.text.length / 4),
       tokensOutput: 50,
