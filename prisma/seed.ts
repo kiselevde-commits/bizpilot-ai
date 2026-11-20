@@ -15,6 +15,17 @@ const passwordHash = hashSync(adminPassword, 12);
 
 const WORKSPACE_NAME = "Demo";
 const WORKSPACE_SLUG = "demo";
+const DEMO_PREFIX = "[DEMO] ";
+
+/** Every seeded Lead/Task title carries the `[DEMO]` marker required by the spec. */
+function withDemoPrefix(title: string): string {
+  return title.startsWith(DEMO_PREFIX) ? title : `${DEMO_PREFIX}${title}`;
+}
+
+/** Titles written by earlier seed versions (without the prefix). */
+function withoutDemoPrefix(title: string): string {
+  return title.startsWith(DEMO_PREFIX) ? title.slice(DEMO_PREFIX.length) : title;
+}
 
 type DemoContact = {
   name: string;
@@ -469,18 +480,23 @@ async function main() {
     const l = leads[i]!;
     const creator = creatorByIndex(i);
     const contactId = i < createdContacts.length ? createdContacts[i]!.id : undefined;
+    const title = withDemoPrefix(l.title);
     const existing = await prisma.lead.findFirst({
-      where: { workspaceId: workspace.id, title: l.title },
-      select: { id: true },
+      where: { workspaceId: workspace.id, title: { in: [title, withoutDemoPrefix(title)] } },
+      select: { id: true, title: true },
     });
 
     if (existing) {
+      // Upgrade rows created by earlier seed versions without the `[DEMO]` prefix.
+      if (existing.title !== title) {
+        await prisma.lead.update({ where: { id: existing.id }, data: { title } });
+      }
       continue;
     }
 
     await prisma.lead.create({
       data: {
-        title: l.title,
+        title,
         message: l.message,
         source: l.source,
         status: l.status as import("@prisma/client").LeadStatus,
@@ -507,18 +523,22 @@ async function main() {
     const t = tasks[i]!;
     const creator = creatorByIndex(i);
     const leadId = i < createdLeads.length ? createdLeads[i]!.id : undefined;
+    const title = withDemoPrefix(t.title);
     const existing = await prisma.task.findFirst({
-      where: { workspaceId: workspace.id, title: t.title },
-      select: { id: true },
+      where: { workspaceId: workspace.id, title: { in: [title, withoutDemoPrefix(title)] } },
+      select: { id: true, title: true },
     });
 
     if (existing) {
+      if (existing.title !== title) {
+        await prisma.task.update({ where: { id: existing.id }, data: { title } });
+      }
       continue;
     }
 
     await prisma.task.create({
       data: {
-        title: t.title,
+        title,
         description: t.description,
         status: t.status as import("@prisma/client").TaskStatus,
         priority: t.priority as import("@prisma/client").Priority,

@@ -8,6 +8,7 @@ test-results
 .git
 .gitignore
 .env
+.env.docker
 .env.local
 .env.*.local
 *.log
