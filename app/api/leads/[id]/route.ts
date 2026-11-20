@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser, requireRole } from "@/lib/auth/session";
 import { DELETE_ROLES } from "@/lib/auth/roles";
-import {
-  getLead,
-  updateLead,
-  deleteLead,
-  type LeadUpdateInput,
-} from "@/services/lead.service";
+import { getLead, updateLead, deleteLead, type LeadUpdateInput } from "@/services/lead.service";
 import { jsonSuccess, jsonError } from "@/lib/api/envelope";
 import { handleApiError } from "@/lib/api/handle-error";
 import { assertJsonContentType, readJsonBody } from "@/lib/api/body-limit";
@@ -22,24 +17,32 @@ function validateLeadUpdateBody(body: unknown): void {
   const obj = body as Record<string, unknown>;
 
   const validators: Record<string, (v: unknown) => boolean> = {
-    title: (v: unknown) =>
-      typeof v === "string" && v.trim().length > 0 && v.length <= 255,
+    title: (v: unknown) => typeof v === "string" && v.trim().length > 0 && v.length <= 255,
     message: (v: unknown) => typeof v === "string" && v.length <= 20000,
     source: (v: unknown) => v == null || (typeof v === "string" && v.length <= 100),
     status: (v: unknown) =>
+      v == null ||
       ["NEW", "ANALYZING", "QUALIFIED", "IN_PROGRESS", "WAITING", "CONVERTED", "REJECTED"].includes(
         v as string,
       ),
-    priority: (v: unknown) => ["LOW", "MEDIUM", "HIGH", "URGENT"].includes(v as string),
+    priority: (v: unknown) =>
+      v == null || ["LOW", "MEDIUM", "HIGH", "URGENT"].includes(v as string),
     category: (v: unknown) =>
-      ["business_automation", "crm_integration", "ai_bot", "document_flow", "web_app", "other"].includes(
-        v as string,
-      ),
+      v == null ||
+      [
+        "business_automation",
+        "crm_integration",
+        "ai_bot",
+        "document_flow",
+        "web_app",
+        "other",
+      ].includes(v as string),
     intent: (v: unknown) =>
-      ["request", "question", "complaint", "info", "other"].includes(v as string),
-    customerType: (v: unknown) => ["b2b", "b2c", "b2g", "unknown"].includes(v as string),
-    contactId: (v: unknown) => typeof v === "string",
-    assignedToId: (v: unknown) => typeof v === "string",
+      v == null || ["request", "question", "complaint", "info", "other"].includes(v as string),
+    customerType: (v: unknown) =>
+      v == null || ["b2b", "b2c", "b2g", "unknown"].includes(v as string),
+    contactId: (v: unknown) => v == null || typeof v === "string",
+    assignedToId: (v: unknown) => v == null || typeof v === "string",
   };
 
   for (const [key, validator] of Object.entries(validators)) {

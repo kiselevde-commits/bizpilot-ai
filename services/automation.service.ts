@@ -112,6 +112,8 @@ export type DispatchSummary = {
 export type DispatchOptions = {
   limit?: number;
   eventId?: string;
+  /** Optional scope for callers that dispatch a single workspace (tests, jobs). */
+  workspaceId?: string;
   now?: Date;
   client?: N8nClient | null;
   config?: N8nDispatchConfig | null;
@@ -317,9 +319,13 @@ async function claimEvents(
   now: Date,
   lockToken: string,
   eventId?: string,
+  workspaceId?: string,
 ): Promise<ClaimedEvent[]> {
   const leaseCutoff = new Date(now.getTime() - LEASE_DURATION_MS);
   const eventFilter = eventId ? Prisma.sql`AND "id" = ${eventId}` : Prisma.empty;
+  const workspaceFilter = workspaceId
+    ? Prisma.sql`AND "workspaceId" = ${workspaceId}`
+    : Prisma.empty;
 
   return prisma.$queryRaw<ClaimedEvent[]>(Prisma.sql`
     WITH candidates AS (
@@ -332,6 +338,7 @@ async function claimEvents(
         AND ("nextRetryAt" IS NULL OR "nextRetryAt" <= (${now} AT TIME ZONE 'UTC'))
         AND ("lockedAt" IS NULL OR "lockedAt" < (${leaseCutoff} AT TIME ZONE 'UTC'))
         ${eventFilter}
+        ${workspaceFilter}
       ORDER BY "createdAt" ASC
       LIMIT ${limit}
       FOR UPDATE SKIP LOCKED
@@ -565,7 +572,7 @@ export async function dispatchPendingEvents(
   const client =
     options.client !== undefined ? options.client : config ? new HttpN8nClient(config) : null;
   const lockToken = randomUUID();
-  const claimed = await claimEvents(limit, now, lockToken, options.eventId);
+  const claimed = await claimEvents(limit, now, lockToken, options.eventId, options.workspaceId);
 
   const summary: DispatchSummary = {
     claimed: claimed.length,
