@@ -532,7 +532,7 @@ JWT содержит `sub`, `role`, `workspaceId` для UI/middleware. Серв
 ### 8.5. Workspace scope и IDOR
 
 - Любая выборка: `where: { id, workspaceId }`; чужая запись → 404, не 403 (не раскрывать существование).
-- Связанные сущности проверяются на тот же Workspace.
+- Запись связей: `Lead.contactId`, `Lead.assignedToId`, `Task.leadId`, `Task.contactId`, `Task.assignedToId` проверяются на тот же Workspace. Несуществующий и чужой ID дают одинаковый 404.
 - `assignedToId` должен быть пользователем того же Workspace.
 - Дубли контактов — только внутри Workspace.
 - Тесты: пользователь A не читает/не меняет/не удаляет данные Workspace B.

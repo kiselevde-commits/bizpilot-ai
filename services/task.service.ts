@@ -12,6 +12,7 @@ import {
   paginationQuerySchema,
   type PaginationQuery,
 } from "@/lib/validation/query";
+import { assertTaskRelationsInWorkspace } from "@/services/workspace-relations.service";
 import type { Task } from "@prisma/client";
 
 const TASK_SORT_ALLOW_LIST: readonly string[] = [
@@ -190,6 +191,8 @@ export async function createTask(
   }
 
   return prisma.$transaction(async (tx) => {
+    await assertTaskRelationsInWorkspace(tx, user.workspaceId, input);
+
     const created = await tx.task.create({
       data: {
         title: input.title.trim(),
@@ -267,6 +270,8 @@ export async function updateTask(
   }
 
   return prisma.$transaction(async (tx) => {
+    await assertTaskRelationsInWorkspace(tx, user.workspaceId, input);
+
     const updated = await tx.task.update({
       where: { id },
       data: {

@@ -134,6 +134,11 @@ Query `GET /api/leads`: `page`, `limit`, `search`, `status`, `priority`,
 `AutomationEvent(PENDING)` с `idempotencyKey=lead.created:<leadId>`. После commit
 запускается best-effort dispatcher.
 
+`contactId` и `assignedToId` проверяются до записи: связанные Contact/User
+должны принадлежать текущему Workspace. Несуществующий или чужой ID даёт
+`404 NOT_FOUND` без раскрытия существования записи. При `PATCH` отсутствующее
+поле не меняет связь, явный `null` очищает её.
+
 `DELETE`:
 
 - `AIAnalysis` удаляется каскадом;
@@ -170,6 +175,11 @@ Query: `page`, `limit`, `search`, `status`, `priority`, `assignedToId`,
 
 Поля: `title` (обязательно), `description`, `status`, `priority`, `dueDate`,
 `assignedToId`, `leadId`, `contactId`.
+
+`leadId`, `contactId` и `assignedToId` проверяются до записи и должны
+принадлежать текущему Workspace; несуществующий или чужой ID даёт
+`404 NOT_FOUND`. При `PATCH` отсутствующее поле не меняет связь, явный `null`
+очищает её.
 
 ## 6. AI
 

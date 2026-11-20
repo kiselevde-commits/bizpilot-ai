@@ -16,6 +16,7 @@ import {
   LEAD_CREATED_EVENT_TYPE,
 } from "@/lib/automation/lead-event";
 import { queueAutomationDispatch } from "@/services/automation.service";
+import { assertLeadRelationsInWorkspace } from "@/services/workspace-relations.service";
 import { parseSort, paginationQuerySchema, type PaginationQuery } from "@/lib/validation/query";
 import type { Lead } from "@prisma/client";
 
@@ -219,6 +220,8 @@ export async function createLead(user: SessionUser, input: LeadCreateInput): Pro
       : null;
 
   const lead = await prisma.$transaction(async (tx) => {
+    await assertLeadRelationsInWorkspace(tx, user.workspaceId, input);
+
     const created = await tx.lead.create({
       data: {
         title: input.title.trim(),
@@ -331,6 +334,8 @@ export async function updateLead(
       : existing.customerType;
 
   return prisma.$transaction(async (tx) => {
+    await assertLeadRelationsInWorkspace(tx, user.workspaceId, input);
+
     const updated = await tx.lead.update({
       where: { id },
       data: {
