@@ -97,7 +97,7 @@ Seed создаёт: 1 Workspace, 3 пользователя (ADMIN/MANAGER/OPER
 
 ## Healthcheck
 
-- `GET /api/ai/health` — публичный, возвращает `{ status: "ok" }`; используется Docker healthcheck.
+- `GET /api/ai/health` — публичный, возвращает `{ status: "ok", configured }`; используется Docker healthcheck.
 - n8n — `GET /healthz` на `127.0.0.1:5678`.
 - Postgres: `pg_isready -U bizpilot -d bizpilot`.
 

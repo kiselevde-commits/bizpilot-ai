@@ -561,7 +561,7 @@ JWT содержит `sub`, `role`, `workspaceId` для UI/middleware. Серв
 | POST             | `/api/ai/analyze-lead`             | все                        | альтернативный вход к тому же service |
 | POST             | `/api/ai/generate-reply`           | все                        | реальный AI-вызов, без автоотправки   |
 | GET              | `/api/ai/history`                  | все                        | история по leadId                     |
-| GET              | `/api/ai/health`                   | public                     | минимальный статус, без секретов      |
+| GET              | `/api/ai/health`                   | public                     | минимальный статус + configured, без секретов |
 | GET              | `/api/automation/events`           | ADMIN/MANAGER              | журнал + lazy dispatch                |
 | POST             | `/api/automation/events/:id/retry` | ADMIN/MANAGER              | ручной retry                          |
 | GET              | `/api/automation/status`           | ADMIN/MANAGER              | counts + integrations + lazy dispatch |
@@ -600,7 +600,8 @@ In-memory Map + TTL, 429 + `Retry-After`. Ограничение одного п
 
 ### 9.6. CSRF / Origin
 
-- Для cookie-authenticated mutations проверяется `Origin` против `APP_BASE_URL`/host.
+- Для cookie-authenticated mutations проверяется `Origin` против множества допустимых origin: `APP_BASE_URL`, реальный origin, с которого получен запрос (`request.url`), и первый хост из `Host`/`X-Forwarded-Host` (прокси-цепочка — берётся первый хост).
+- Нормализация origin допускает только `http:`/`https:` протоколы; значение сравнивается нормализованным.
 - SameSite=lax и CSRF Auth.js учитываются.
 - Server Actions не считаются заменой авторизации.
 - Webhook не использует cookie; защита — HMAC + timestamp.
@@ -645,30 +646,35 @@ ENV: `AI_BASE_URL` (default `https://openrouter.ai/api/v1`), `AI_API_KEY`, `AI_M
 
 ```json
 {
+  "summary": "string <= 300",
+  "leadScore": 0,
   "category": "business_automation | crm_integration | ai_bot | document_flow | web_app | other",
   "intent": "request | question | complaint | info | other",
-  "summary": "string <= 300",
   "priority": "LOW | MEDIUM | HIGH | URGENT",
-  "lead_score": 0,
-  "score_breakdown": {
-    "need_clarity": 0,
-    "service_fit": 0,
+  "scoreBreakdown": {
+    "relevance": 0,
     "urgency": 0,
+    "budget": 0,
     "contact_completeness": 0,
-    "budget_timeline": 0
+    "timeline": 0
   },
-  "customer_type": "b2b | b2c | b2g | unknown",
-  "contact": { "name": null, "company": null, "email": null, "phone": null },
-  "budget": null,
-  "timeline": null,
-  "pain_points": [],
-  "missing_information": [],
-  "recommended_action": "string",
-  "draft_reply": "string <= 800"
+  "justification": "string <= 1000",
+  "factors": [],
+  "recommendations": [],
+  "risks": [],
+  "missingInfo": [],
+  "extractedContacts": {
+    "name": null,
+    "company": null,
+    "email": null,
+    "phone": null
+  }
 }
 ```
 
-Все score — целые 0–100. `lead_score` — эвристика, не вероятность продажи. Zod проверяет enum, диапазоны, длины, максимальные размеры массивов (10) и строк (300/500). `contact.email` при наличии валидируется как email.
+`draftReply` возвращается отдельным endpoint `POST /api/ai/generate-reply` как `{ draftReply }`.
+
+Все score — целые 0–100. `leadScore` — эвристика, не вероятность продажи. Zod проверяет enum, диапазоны, длины, максимальные размеры массивов и строк (300/1000/800, max 20 элементов). `extractedContacts` — nullable-поля (`name`, `company`, `email`, `phone`); сервис после Zod-запроса вызывает `filterExtractedContacts(sourceText, extracted)`: для текстовых полей проверяется нормализованное включение в текст заявки, для телефона — совпадение цифровой последовательности. Незафиксированные LLM значения обнуляются до сохранения и ответа.
 
 ### 10.4. Retry и timeout
 
@@ -909,7 +915,7 @@ docker compose --env-file .env.docker --profile automation up -d
 - `pnpm install --frozen-lockfile`; `prisma generate`; `next build` с `output: "standalone"`.
 - Runner: non-root user, только standalone + static + public + Prisma engine.
 - Prisma CLI остаётся в `migrate` (builder target), не в runtime.
-- Healthcheck `/api/ai/health` (public, минимальный, без секретов; на этапе 1 — `{ status: "ok" }`, на этапе 3 — `configured`).
+- Healthcheck `/api/ai/health` (public, минимальный, без секретов; возвращает `{ status: "ok", configured: boolean }`).
 
 ### 14.3. ENV
 

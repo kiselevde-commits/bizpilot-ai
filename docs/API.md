@@ -101,7 +101,7 @@ Allow-list:
 | GET/POST | `/api/auth/*`    | Auth.js (csrf, signin, signout, session) |
 | GET      | `/api/ai/health` | Публичный healthcheck                    |
 
-`GET /api/ai/health` → `{ "status": "ok" }`. Не раскрывает provider/model/секреты.
+`GET /api/ai/health` → `{ "status": "ok", "configured": true }`. Не раскрывает provider/model/секреты.
 
 ## 3. Leads
 
@@ -187,10 +187,12 @@ Query: `page`, `limit`, `search`, `status`, `priority`, `assignedToId`,
 { "text": "Текст заявки", "leadId": "uuid" }
 ```
 
-Ответ содержит `analysis` (category, intent, summary, priority, lead_score,
-score_breakdown, customer_type, contact, budget, timeline, pain_points,
-missing_information, recommended_action, draft_reply), `provider`, `model`,
-`tokensInput`, `tokensOutput`, `durationMs`. Lead не изменяется.
+Ответ содержит `analysis` (summary, leadScore, category, intent, priority,
+scoreBreakdown, justification, factors, recommendations, risks, missingInfo,
+extractedContacts), `provider`, `model`, `tokensInput`, `tokensOutput`,
+`durationMs`. `extractedContacts` — контактные данные (name/company/email/phone,
+nullable), оставшиеся после серверной проверки `filterExtractedContacts` по
+тексту заявки; не упомянутые LLM значения обнуляются. Lead не изменяется.
 
 ### 6.2. Apply analysis
 

@@ -1,9 +1,9 @@
 # План реализации BizPilot AI
 
-**Версия:** 1.4 (этап 4 — автоматизация)  
-**Дата:** 2026-11-19  
+**Версия:** 1.4 (этап 4 — автоматизация; AI-контур: 2026-11-20)  
+**Дата:** 2026-11-20  
 **Источник:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24  
-**Текущий этап:** этапы 1–4 реализованы в коде и тестах. Локальный PostgreSQL 16 используется для миграций, seed, API и integration-тестов. Реальный AI-провайдер проверен. Реальный n8n + Telegram runtime — **BLOCKED** (нет n8n/Telegram credentials и Docker). Docker-приёмка — BLOCKED.
+**Текущий этап:** этапы 1–4 реализованы в коде и тестах. Локальный PostgreSQL 16 используется для миграций, seed, API и integration-тестов. Реальный AI-провайдер проверен. Реальный n8n + Telegram runtime — **BLOCKED** (нет n8n/Telegram credentials и Docker). Docker-приёмка — BLOCKED. 2026-11-20: завершена реализация серверной фильтрации AI-контактов (`filterExtractedContacts`), health `{status, configured}`.
 
 ## Легенда статусов
 
@@ -437,6 +437,10 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 | 2026-11-19 | 4    | n8n/Telegram runtime | реальный E2E                     | BLOCKED (нет credentials/Docker)           |
 | 2026-11-19 | 4    | Docker Compose       | `docker compose up`              | BLOCKED (Docker не установлен)             |
 
+| 2026-11-20 | AI    | filterExtractedContacts | unit `ai-contacts/ai-service/ai-prompt/ai-schema` | PASS (фильтр, промпт, service) |
+| 2026-11-20 | AI    | Health `{status, configured}` | `pnpm build` + docs/API.md | PASS; shape обновлён |
+| 2026-11-20 | Docs  | Синхронизация API/ARCH/DEPLOY/SECURITY | ручная сверка с кодом | PASS (health, extractedContacts, Origin) |
+
 ## 10. Открытые вопросы
 
 | №   | Вопрос                              | Варианты/рекомендация                                                                                                                                             | Блокирует            | Владелец                |
@@ -509,6 +513,7 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 | 2026-11-19 | Исправлены 15 критических дефектов; проверки на локальном PostgreSQL 16; Docker — BLOCKED                                                          |
 | 2026-11-19 | Подключён реальный AI: Yandex AI Studio, `aliceai-llm-flash`; `pnpm test:ai` и API-смоук PASS                                                      |
 | 2026-11-19 | Этап 4 Automation: outbox/HMAC/dedupe/retry/API/Settings UI/draft n8n workflow; 179 unit, 19 integration, build PASS; runtime n8n/Telegram BLOCKED |
+| 2026-11-20 | AI: `extractedContacts` в схеме/промпте/provider, серверный `filterExtractedContacts`; health `{status, configured}`; docs/API+ARCH+DEPLOY+SECURITY обновлены | unit 196 PASS (20 файлов), integration 18/19 PASS (+1 timing-flaky, PASS in isolation), typecheck/lint/build PASS |
 
 ## 14. Исправление критических дефектов (2026-11-19)
 
