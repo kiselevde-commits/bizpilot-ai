@@ -29,6 +29,36 @@ export type AIProviderConfig = {
   timeoutMs: number;
 };
 
+export type AIProviderSettings = {
+  baseUrl?: string | null;
+  apiKey?: string | null;
+  model?: string | null;
+};
+
+function normalizeSetting(value: string | null | undefined): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function missingAISettings(settings: AIProviderSettings): string[] {
+  const missing: string[] = [];
+
+  if (normalizeSetting(settings.baseUrl).length === 0) missing.push("AI_BASE_URL");
+  if (normalizeSetting(settings.apiKey).length === 0) missing.push("AI_API_KEY");
+  if (normalizeSetting(settings.model).length === 0) missing.push("AI_MODEL");
+
+  return missing;
+}
+
+/**
+ * Single source of truth for "is the AI provider configured".
+ *
+ * Whitespace-only values count as missing, so the public health endpoint and
+ * the runtime provider can never disagree about an unusable configuration.
+ */
+export function isAIProviderConfigured(settings: AIProviderSettings): boolean {
+  return missingAISettings(settings).length === 0;
+}
+
 export interface AIProvider {
   readonly name: string;
   readonly model: string;
@@ -99,11 +129,21 @@ export function buildAIProvider(config: AIProviderConfig, mock: boolean): AIProv
     return new MockAIProvider();
   }
 
-  if (!config.apiKey || config.apiKey.trim().length === 0) {
-    throw new AppError("AI_NOT_CONFIGURED", "AI provider API key is not configured");
+  const missing = missingAISettings(config);
+
+  if (missing.length > 0) {
+    throw new AppError(
+      "AI_NOT_CONFIGURED",
+      `AI provider configuration is incomplete: ${missing.join(", ")}`,
+    );
   }
 
-  return new OpenAICompatibleProvider(config);
+  return new OpenAICompatibleProvider({
+    ...config,
+    baseUrl: config.baseUrl.trim().replace(/\/+$/, ""),
+    apiKey: config.apiKey.trim(),
+    model: config.model.trim(),
+  });
 }
 
 export class MockAIProvider implements AIProvider {

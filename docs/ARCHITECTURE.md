@@ -637,7 +637,9 @@ interface AIProvider {
 - `OpenAICompatibleProvider` — `fetch` на `${AI_BASE_URL}/chat/completions`.
 - `MockAIProvider` — детерминированные ответы для E2E/CI; только при `AI_PROVIDER=mock` и `ALLOW_MOCK_AI=true`; в production запрещён.
 
-ENV: `AI_BASE_URL` (default `https://openrouter.ai/api/v1`), `AI_API_KEY`, `AI_MODEL`, `AI_TIMEOUT_MS=60000`. `AI_MODEL` без дефолта: при отсутствии анализ возвращает 503 `AI_NOT_CONFIGURED`.
+ENV: `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL`, `AI_TIMEOUT_MS=60000`. Значений по умолчанию нет: `AI_BASE_URL` обязателен, при его отсутствии анализ возвращает 503 `AI_NOT_CONFIGURED`; `AI_MODEL` также без дефолта. Все три значения проверяются после `trim()`: пустая или whitespace-only строка считается отсутствующей. Runtime (`buildAIProvider`) и `GET /api/ai/health` используют один helper `isAIProviderConfigured`, поэтому health не сообщает `configured: true` для конфигурации, которая вернёт 503 `AI_NOT_CONFIGURED`. `AI_BASE_URL` нормализуется без завершающих `/`.
+
+UI `/ai-assistant` при `configured: false` показывает состояние «AI не настроен», предупреждение и блокирует анализ и генерацию черновика; действия доступны только при `configured: true`.
 
 ### 10.2. Prompt
 
@@ -920,7 +922,7 @@ docker compose --env-file .env.docker --profile automation up -d
 - `pnpm install --frozen-lockfile`; `prisma generate`; `next build` с `output: "standalone"`.
 - Runner: non-root user, только standalone + static + public + Prisma engine.
 - Prisma CLI остаётся в `migrate` (builder target), не в runtime.
-- Healthcheck `/api/ai/health` (public, минимальный, без секретов; возвращает `{ status: "ok", configured: boolean }`).
+- Healthcheck `/api/ai/health` (public, минимальный, без секретов; возвращает `{ status: "ok", configured: boolean }`; `configured` использует ту же trim-проверку, что и runtime).
 
 ### 14.3. ENV
 
@@ -1054,7 +1056,7 @@ CI не вызывает реальный LLM. Docker job использует �
 5. `POST /api/leads/:id/apply-analysis` — endpoint добавлен, так как 24.5 требует кнопку «Применить результат», но endpoint в списке 11 отсутствует.
 6. Apply AI обновляет только поля из 24.5; контакт/задача создаются отдельными явными действиями пользователя (без автоматического merge).
 7. Session maxAge 8 часов — ТЗ не задаёт.
-8. `GET /api/ai/health` возвращает минимальный `{ status: "ok", configured: boolean }`, без provider/model/секретов.
+8. `GET /api/ai/health` возвращает минимальный `{ status: "ok", configured: boolean }`, без provider/model/секретов; `configured` вычисляется после `trim()` по тем же правилам, что runtime.
 9. `Lead.message` ограничен 20 000 символов в Zod (body limit 256 KB — не то же самое, что контекст LLM).
 10. `scoreBreakdown` хранится как JSON с ключами AI-схемы; отображение — 5 прогресс-баров.
 11. Строгий граф переходов Lead/Task status не задан. MVP валидирует enum и не позволяет AI менять `status`; если нужен строгий граф — требуется согласование.
@@ -1088,6 +1090,7 @@ CI не вызывает реальный LLM. Docker job использует �
 | 2026-11-19 | `n8n-db-init` под profile `automation`                             | Роли/права не требуются базовому стеку; init идемпотентен                |
 | 2026-11-19 | n8n workflow помечен DRAFT                                         | Нет runtime n8n/Telegram; запрещено выдавать за проверенный экспорт      |
 | 2026-11-19 | shadcn/ui вендорится под Tailwind 3                                | Baseline Tailwind 3; CLI 4.x может тянуть Tailwind 4                     |
+| 2026-11-22 | AI config: единая trim-валидация в runtime и health                | Health не подтверждает нерабочую конфигурацию; UI блокирует действия     |
 
 ## 19. Источники проверки версий
 

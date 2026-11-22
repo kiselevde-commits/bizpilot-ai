@@ -11,12 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnalysisResult, type AppliedAnalysis } from "@/components/ai/analysis-result";
+import {
+  canRunAiActions,
+  resolveAiHealthState,
+  type AiHealthResponse,
+  type AiHealthState,
+} from "@/lib/utils/ai-health";
 import { formatDateTime } from "@/lib/utils/labels";
 
 type LeadOption = { id: string; title: string; message?: string };
-
-type HealthState =
-  { status: "loading" } | { status: "ready"; mode: string } | { status: "error"; message: string };
 
 type HistoryItem = {
   id: string;
@@ -49,7 +52,7 @@ export default function AIAssistantPage() {
   const searchParams = useSearchParams();
   const initialLeadId = searchParams.get("leadId") ?? "";
 
-  const [health, setHealth] = useState<HealthState>({ status: "loading" });
+  const [health, setHealth] = useState<AiHealthState>({ status: "loading" });
   const [leads, setLeads] = useState<LeadOption[]>([]);
   const [leadsState, setLeadsState] = useState<"loading" | "ready" | "error">("loading");
   const [leadsError, setLeadsError] = useState<string | null>(null);
@@ -78,14 +81,11 @@ export default function AIAssistantPage() {
     fetch("/api/ai/health")
       .then(async (res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        return (await res.json()) as { status?: string; configured?: boolean };
+        return (await res.json()) as AiHealthResponse;
       })
-      .then((data) => {
+      .then((payload) => {
         if (cancelled) return;
-        setHealth({
-          status: "ready",
-          mode: data.configured ? "configured" : "not-configured",
-        });
+        setHealth(resolveAiHealthState(payload));
       })
       .catch(() => {
         if (cancelled) setHealth({ status: "error", message: "AI-провайдер недоступен" });
@@ -143,6 +143,7 @@ export default function AIAssistantPage() {
     () => leads.find((lead) => lead.id === selectedLeadId) ?? null,
     [leads, selectedLeadId],
   );
+  const aiReady = canRunAiActions(health);
 
   useEffect(() => {
     if (!selectedLead?.message) return;
@@ -165,6 +166,10 @@ export default function AIAssistantPage() {
 
   async function handleAnalyze(event: React.FormEvent) {
     event.preventDefault();
+
+    if (!aiReady) {
+      return;
+    }
 
     if (!selectedLeadId) {
       setError("Выберите заявку для анализа");
@@ -225,7 +230,7 @@ export default function AIAssistantPage() {
   }
 
   async function handleDraftReply() {
-    if (!selectedLeadId) return;
+    if (!aiReady || !selectedLeadId) return;
 
     setReplying(true);
     setReplyError(null);
@@ -285,6 +290,10 @@ export default function AIAssistantPage() {
                 <Badge variant="success" data-testid="ai-health">
                   AI готов
                 </Badge>
+              ) : health.status === "unconfigured" ? (
+                <Badge variant="warning" data-testid="ai-health">
+                  AI не настроен
+                </Badge>
               ) : (
                 <Badge variant="destructive" data-testid="ai-health">
                   Недоступен
@@ -294,6 +303,13 @@ export default function AIAssistantPage() {
             <CardContent className="space-y-4">
               {health.status === "error" ? (
                 <Alert variant="destructive">{health.message}. Проверьте настройки AI в ENV.</Alert>
+              ) : null}
+
+              {health.status === "unconfigured" ? (
+                <Alert variant="warning" data-testid="ai-unconfigured">
+                  AI не настроен: провайдер, модель или ключ отсутствуют в ENV. Пока конфигурация не
+                  задана, анализ заявок недоступен.
+                </Alert>
               ) : null}
 
               <div className="flex flex-col gap-2">
@@ -346,7 +362,7 @@ export default function AIAssistantPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <Button
                     type="submit"
-                    disabled={analyzing || !inputText.trim() || !selectedLeadId}
+                    disabled={analyzing || !inputText.trim() || !selectedLeadId || !aiReady}
                     data-testid="analyze-button"
                   >
                     <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -356,7 +372,7 @@ export default function AIAssistantPage() {
                     type="button"
                     variant="outline"
                     onClick={handleDraftReply}
-                    disabled={replying || !inputText.trim() || !selectedLeadId}
+                    disabled={replying || !inputText.trim() || !selectedLeadId || !aiReady}
                   >
                     {replying ? "Генерация…" : "Черновик ответа"}
                   </Button>

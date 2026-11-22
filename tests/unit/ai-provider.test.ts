@@ -1,5 +1,10 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { MockAIProvider, buildAIProvider, AIProviderError } from "@/lib/ai/provider";
+import {
+  MockAIProvider,
+  buildAIProvider,
+  isAIProviderConfigured,
+  AIProviderError,
+} from "@/lib/ai/provider";
 import type { AIAnalysisResult, GenerateReplyResult } from "@/lib/ai/provider";
 import { AIAnalysisResponseSchema } from "@/lib/ai/schema";
 import { GenerateReplyResponseSchema } from "@/lib/ai/schema";
@@ -82,6 +87,65 @@ describe("OpenAICompatibleProvider JSON parsing", () => {
     await expect(
       provider.generateReply({ text: "Текст", systemPrompt: "system", maxOutputTokens: 100 }),
     ).rejects.toBeInstanceOf(AIProviderError);
+  });
+});
+
+describe("AI provider configuration", () => {
+  const settings = {
+    baseUrl: "https://example.test/v1",
+    apiKey: "test-key",
+    model: "test-model",
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("requires baseUrl, apiKey and model", () => {
+    expect(isAIProviderConfigured(settings)).toBe(true);
+    expect(isAIProviderConfigured({ ...settings, baseUrl: "" })).toBe(false);
+    expect(isAIProviderConfigured({ ...settings, apiKey: "   " })).toBe(false);
+    expect(isAIProviderConfigured({ ...settings, model: undefined })).toBe(false);
+  });
+
+  it("treats whitespace-only values as missing at runtime", () => {
+    expect(() =>
+      buildAIProvider({ ...settings, baseUrl: "\t", model: "  ", timeoutMs: 1000 }, false),
+    ).toThrowError(expect.objectContaining({ code: "AI_NOT_CONFIGURED" }));
+
+    expect(() =>
+      buildAIProvider({ ...settings, apiKey: " ", timeoutMs: 1000 }, false),
+    ).toThrowError(expect.objectContaining({ code: "AI_NOT_CONFIGURED" }));
+  });
+
+  it("trims settings before building the runtime provider", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ choices: [{ message: { content: '{"draftReply":"ok"}' } }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = buildAIProvider(
+      {
+        baseUrl: "  https://example.test/v1/  ",
+        apiKey: "  test-key  ",
+        model: "  test-model  ",
+        timeoutMs: 1000,
+      },
+      false,
+    );
+
+    await provider.generateReply({ text: "Текст", systemPrompt: "system", maxOutputTokens: 100 });
+
+    expect(provider.model).toBe("test-model");
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://example.test/v1/chat/completions",
+      expect.objectContaining({
+        headers: { "Content-Type": "application/json", Authorization: "Bearer test-key" },
+      }),
+    );
   });
 });
 
