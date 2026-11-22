@@ -9,9 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
+import { safeCallbackUrl } from "@/lib/auth/callback";
 
 export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
   const router = useRouter();
+  const targetUrl = safeCallbackUrl(callbackUrl);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -33,7 +35,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         email,
         password,
         redirect: false,
-        callbackUrl,
+        callbackUrl: targetUrl,
       });
 
       if (!result || result.error) {
@@ -45,7 +47,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         return;
       }
 
-      router.push(callbackUrl);
+      router.push(targetUrl);
       router.refresh();
     } catch {
       setError("Не удалось выполнить вход. Попробуйте ещё раз.");
