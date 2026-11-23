@@ -3,10 +3,11 @@ import { PageHeader } from "@/components/layout/page-header";
 
 export default async function ContactsNewPage() {
   return (
-    <div className="max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       <PageHeader
+        eyebrow="New contact"
         title="Новый контакт"
-        description="Добавьте новый контакт в CRM"
+        description="Добавьте клиента в CRM, чтобы связывать его с заявками и задачами."
       />
       <ContactForm mode="create" />
     </div>

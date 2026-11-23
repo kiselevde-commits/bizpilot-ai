@@ -28,8 +28,12 @@ export default async function TasksNewPage({
     contactId && contacts.some((option) => option.value === contactId) ? contactId : null;
 
   return (
-    <div className="max-w-3xl">
-      <PageHeader title="Новая задача" description="Создайте новую задачу для выполнения" />
+    <div className="mx-auto max-w-4xl">
+      <PageHeader
+        eyebrow="New task"
+        title="Новая задача"
+        description="Назначьте следующий шаг, срок и ответственного."
+      />
       <TaskForm
         mode="create"
         leads={leads}

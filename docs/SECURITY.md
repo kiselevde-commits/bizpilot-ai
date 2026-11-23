@@ -143,6 +143,11 @@ SELECT
 
 ## 8. Результаты проверок (2026-11-20)
 
+> Таблица ниже — исторические результаты прогонов 2026-11-20. В ревизии
+> 2026-11-22 integration/E2E не перезапускались; актуальный статус и причины —
+> `docs/IMPLEMENTATION_PLAN.md` §15.4. Нельзя переносить исторический E2E PASS на
+> текущую ревизию.
+
 | Проверка                     | Команда/метод                                                | Результат              | Замечания                                                                                     | Статус  |
 | ---------------------------- | ------------------------------------------------------------ | ---------------------- | --------------------------------------------------------------------------------------------- | ------- |
 | Typecheck                    | `pnpm typecheck`                                             | 0 ошибок               | strict + noUncheckedIndexedAccess                                                             | PASS    |
@@ -205,7 +210,21 @@ SELECT
 - `deleteLead` не полагается только на FK: при legacy Task другого Workspace удаление отклоняется с общим 409 до любых изменений.
 - Полная Workspace isolation не считается подтверждённой до аудита целевой БД и устранения найденных cross-workspace строк.
 - Integration-файл запускать только с `DATABASE_URL`, указывающим на изолированную БД/схему:
-  `DATABASE_URL=<isolated> pnpm exec vitest run tests/integration/workspace-read-isolation.integration.test.ts`.
+  `DATABASE_URL=<isolated> TEST_DATABASE_URL=<same> pnpm exec vitest run tests/integration/workspace-read-isolation.integration.test.ts`.
+- Все DB integration-файлы (`workspace-*.integration.test.ts`, `dashboard-*.integration.test.ts`,
+  `automation-dispatch.integration.test.ts`, `n8n-processed.integration.test.ts`) импортируют
+  fail-fast guard до Prisma. Задайте `TEST_DATABASE_URL` и тот же адрес в `DATABASE_URL`; имя БД
+  или schema должны содержать маркер `test` (например, `bizpilot_test` или
+  `?schema=test_dashboard`). Разрешены только локальные hostnames (`localhost`, `127.0.0.1`,
+  IPv6 loopback) и CI alias `postgres`; удалённые hostnames, `development`, `production`, `demo`,
+  `seed` и обычный `DATABASE_URL` отклоняются до первого запроса к Prisma/БД.
+- E2E (`pnpm test:e2e`) также fail-closed: обязателен `TEST_DATABASE_URL` с теми же ограничениями;
+  Playwright сам запускает сервер с `DATABASE_URL=TEST_DATABASE_URL` и **не** переиспользует уже
+  запущенный сервер, поэтому прогон не может незаметно уйти в dev/demo БД. Внешний сервер и
+  `E2E_BASE_URL` запрещены fail-closed: при заданных `E2E_BASE_URL`/`E2E_EXTERNAL_SERVER_ISOLATED`
+  конфигурация падает, а base URL и health URL всегда соответствуют одному собственному серверу
+  Playwright (`http://localhost:3000`). Перед прогоном тестовая БД должна быть seeded тем же
+  `SEED_ADMIN_PASSWORD`; на dev/demo/seed БД E2E не запускается.
 - Read-only аудит: `DATABASE_URL=<target> pnpm exec tsx scripts/audit-workspace-relations.ts`.
 - Windows PowerShell (bash-синтаксис `VAR=value command` не работает):
   ```powershell

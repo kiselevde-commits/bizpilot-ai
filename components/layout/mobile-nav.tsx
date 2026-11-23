@@ -4,8 +4,17 @@ import { useState } from "react";
 import { Menu, Sparkles } from "lucide-react";
 import type { SessionUser } from "@/lib/auth/session";
 import { ROLE_LABELS } from "@/lib/utils/labels";
+import { initials } from "@/lib/utils/initials";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { NavLinks } from "@/components/layout/nav-links";
 
 export function MobileNav({ user }: { user: SessionUser }) {
@@ -18,24 +27,50 @@ export function MobileNav({ user }: { user: SessionUser }) {
           <Menu className="h-5 w-5" />
         </Button>
       </DialogTrigger>
-      <DialogContent className="left-0 top-0 h-full max-w-xs translate-x-0 translate-y-0 rounded-none p-0">
+      <DialogContent className="left-0 top-0 h-full max-w-[19rem] translate-x-0 translate-y-0 rounded-none rounded-r-card border-y-0 border-l-0 p-0">
         <DialogTitle className="sr-only">Навигация</DialogTitle>
-        <div className="flex h-full flex-col">
-          <div className="flex h-16 items-center border-b px-4">
-            <span className="flex items-center gap-2 font-semibold">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
+        <DialogDescription className="sr-only">
+          Разделы рабочего пространства BizPilot AI
+        </DialogDescription>
+        <div className="flex h-full flex-col bg-white/95">
+          <div className="flex h-[72px] shrink-0 items-center border-b border-border/60 px-5">
+            <span className="flex items-center gap-3 font-semibold">
+              <span className="relative flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-glow">
+                <Sparkles className="h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border-2 border-white bg-aqua" />
               </span>
-              BizPilot AI
+              <span>
+                <span className="block text-[15px] leading-tight tracking-[-0.02em] text-ink">
+                  BizPilot AI
+                </span>
+                <span className="mt-0.5 block text-[9px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Intelligent CRM
+                </span>
+              </span>
             </span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-5">
+          <div className="flex-1 overflow-y-auto px-3.5 py-5">
+            <p className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+              Рабочее пространство
+            </p>
             <NavLinks onNavigate={() => setOpen(false)} />
           </div>
-          <div className="border-t p-4">
-            <p className="truncate text-sm font-medium">{user.name}</p>
-            <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-            <p className="mt-1 text-xs text-muted-foreground">{ROLE_LABELS[user.role]}</p>
+          <div className="border-t border-border/60 p-4">
+            <div className="flex items-center gap-2.5">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="text-[11px]">{initials(user.name)}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[13px] font-semibold">{user.name}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex items-center justify-between border-t border-border/60 pt-2.5">
+              <Badge variant="indigo">{ROLE_LABELS[user.role]}</Badge>
+              <span className="max-w-36 truncate text-[11px] text-muted-foreground">
+                {user.workspaceName}
+              </span>
+            </div>
           </div>
         </div>
       </DialogContent>

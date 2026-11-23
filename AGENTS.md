@@ -1,5 +1,7 @@
 # BizPilot AI — Agent Rules
 
+**Required context:** Architect and Developer must read `PROJECT_PLAYBOOK.md` together with this file before starting work. The playbook supplements these rules; `AGENTS.md` takes precedence on conflict.
+
 ## 1. Product
 BizPilot AI is a premium CRM workspace with AI-assisted lead analysis and optional n8n automation.
 Priority: reliable business workflows, security, maintainability and professional UX.

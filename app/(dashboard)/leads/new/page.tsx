@@ -13,8 +13,12 @@ export default async function LeadsNewPage() {
   ]);
 
   return (
-    <div className="max-w-3xl">
-      <PageHeader title="Новая заявка" description="Создайте новую заявку для обработки" />
+    <div className="mx-auto max-w-4xl">
+      <PageHeader
+        eyebrow="New lead"
+        title="Новая заявка"
+        description="Зафиксируйте обращение. После создания его можно отправить в AI-анализ."
+      />
       <LeadForm mode="create" contacts={contacts} assignees={assignees} />
     </div>
   );

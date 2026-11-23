@@ -46,7 +46,10 @@ export function DataPagination({
   const to = Math.min(page * limit, total);
 
   return (
-    <div className="flex flex-col items-start justify-between gap-3 border-t border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
+    <nav
+      aria-label="Пагинация"
+      className="flex flex-col items-start justify-between gap-3 border-t border-border/70 px-4 py-3 sm:flex-row sm:items-center sm:px-5"
+    >
       <p className="text-xs text-muted-foreground">
         Строка {from}–{to} из {total}
         <span className="mx-2 text-muted-foreground">·</span>
@@ -98,6 +101,6 @@ export function DataPagination({
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
         </Link>
       </div>
-    </div>
+    </nav>
   );
 }

@@ -2,7 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Sparkles, Wand2 } from "lucide-react";
+import {
+  Activity,
+  CheckCircle2,
+  Clock3,
+  Copy,
+  FileText,
+  History,
+  LockKeyhole,
+  ScanLine,
+  Sparkles,
+  Wand2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
@@ -10,6 +21,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { AnalysisResult, type AppliedAnalysis } from "@/components/ai/analysis-result";
 import {
   canRunAiActions,
@@ -60,11 +74,7 @@ export default function AIAssistantPage() {
   const [inputText, setInputText] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analysis, setAnalysis] = useState<AppliedAnalysis | null>(null);
-  const [analysisMeta, setAnalysisMeta] = useState<{
-    provider: string;
-    model: string;
-    durationMs?: number;
-  } | null>(null);
+  const [analysisMeta, setAnalysisMeta] = useState<{ durationMs?: number } | null>(null);
   const [analysisWarning, setAnalysisWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -197,11 +207,7 @@ export default function AIAssistantPage() {
       }
 
       setAnalysis(payload.data.analysis);
-      setAnalysisMeta({
-        provider: payload.data.provider,
-        model: payload.data.model,
-        durationMs: payload.data.durationMs,
-      });
+      setAnalysisMeta({ durationMs: payload.data.durationMs });
 
       const extracted = payload.data.analysis as AppliedAnalysis & {
         extractedContacts?: unknown;
@@ -270,32 +276,53 @@ export default function AIAssistantPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
+        eyebrow="AI workspace"
         title="AI-помощник"
-        description="Анализ заявок, оценка лида и черновик ответа на реальной модели"
+        description="Анализ заявок, оценка лида и черновик ответа на реальной модели — с подтверждением перед сохранением."
+        actions={
+          <div className="hidden items-center gap-2 rounded-full border border-primary/[0.15] bg-primary/[0.06] px-3 py-1.5 text-[11px] font-semibold text-primary sm:flex">
+            <span className="h-1.5 w-1.5 animate-pulse-soft rounded-full bg-success" />
+            Human-in-the-loop
+          </div>
+        }
       />
 
-      <div className="grid gap-6 xl:grid-cols-3">
-        <div className="space-y-6 xl:col-span-2">
-          <Card>
-            <CardHeader className="flex-row items-center justify-between space-y-0">
-              <CardTitle className="flex items-center gap-2 text-sm font-medium">
-                <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" />
-                Анализ заявки
-              </CardTitle>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_21rem]">
+        <div className="min-w-0 space-y-4">
+          <Card className="ai-panel ai-aura relative overflow-hidden">
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient"
+              aria-hidden="true"
+            />
+            <CardHeader className="flex-row items-center justify-between space-y-0 pb-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient text-white shadow-glow">
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <CardTitle>Анализ заявки</CardTitle>
+                  <p className="mt-0.5 text-[11px] text-muted-foreground">
+                    Резюме, Lead Score, приоритет и рекомендации
+                  </p>
+                </div>
+              </div>
               {health.status === "loading" ? (
-                <Skeleton className="h-5 w-24" />
+                <Skeleton className="h-6 w-24 rounded-full" />
               ) : health.status === "ready" ? (
-                <Badge variant="success" data-testid="ai-health">
+                <Badge variant="success" data-testid="ai-health" className="gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-success" />
                   AI готов
                 </Badge>
               ) : health.status === "unconfigured" ? (
-                <Badge variant="warning" data-testid="ai-health">
+                <Badge variant="warning" data-testid="ai-health" className="gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-warning" />
                   AI не настроен
                 </Badge>
               ) : (
-                <Badge variant="destructive" data-testid="ai-health">
+                <Badge variant="destructive" data-testid="ai-health" className="gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-destructive" />
                   Недоступен
                 </Badge>
               )}
@@ -312,16 +339,15 @@ export default function AIAssistantPage() {
                 </Alert>
               ) : null}
 
-              <div className="flex flex-col gap-2">
-                <label htmlFor="lead-select" className="text-sm font-medium">
+              <div className="flex flex-col gap-1.5">
+                <label htmlFor="lead-select" className="text-[12px] font-medium text-ink">
                   Заявка
                 </label>
                 {leadsState === "loading" ? (
-                  <Skeleton className="h-10 w-full" />
+                  <Skeleton className="h-10 w-full rounded-field" />
                 ) : (
-                  <select
+                  <Select
                     id="lead-select"
-                    className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                     value={selectedLeadId}
                     onChange={(event) => handleLeadChange(event.target.value)}
                     disabled={analyzing}
@@ -332,61 +358,84 @@ export default function AIAssistantPage() {
                         {lead.title}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                 )}
                 {leadsState === "error" ? (
-                  <p className="text-xs text-destructive">{leadsError}</p>
+                  <p className="text-[11px] text-destructive">{leadsError}</p>
                 ) : null}
                 {leadsState === "ready" && leads.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground">
                     Заявок нет. Сначала создайте заявку в разделе «Заявки».
                   </p>
-                ) : null}
+                ) : (
+                  <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <ScanLine className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
+                    {selectedLead
+                      ? `Текст заявки «${selectedLead.title}» подставлен автоматически`
+                      : "Выберите заявку — её текст подставится автоматически"}
+                  </p>
+                )}
               </div>
 
-              <form onSubmit={handleAnalyze} className="space-y-4">
-                <div className="flex flex-col gap-2">
-                  <label htmlFor="analysis-text" className="text-sm font-medium">
-                    Текст для анализа
-                  </label>
-                  <textarea
+              <form onSubmit={handleAnalyze} className="space-y-3">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <label htmlFor="analysis-text" className="text-[12px] font-medium text-ink">
+                      Текст для анализа
+                    </label>
+                    <span className="text-[10px] tabular-nums text-muted-foreground">
+                      {inputText.length.toLocaleString("ru-RU")} символов
+                    </span>
+                  </div>
+                  <Textarea
                     id="analysis-text"
-                    className="min-h-40 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                    className="min-h-44"
                     value={inputText}
                     onChange={(event) => setInputText(event.target.value)}
                     placeholder="Вставьте текст заявки для AI-анализа"
                     disabled={analyzing}
-                    rows={6}
+                    rows={7}
                   />
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <Button
-                    type="submit"
-                    disabled={analyzing || !inputText.trim() || !selectedLeadId || !aiReady}
-                    data-testid="analyze-button"
-                  >
-                    <Wand2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                    {analyzing ? "Анализ…" : "Анализировать"}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleDraftReply}
-                    disabled={replying || !inputText.trim() || !selectedLeadId || !aiReady}
-                  >
-                    {replying ? "Генерация…" : "Черновик ответа"}
-                  </Button>
-                  {analysisMeta ? (
-                    <span className="text-xs text-muted-foreground">
-                      {analysisMeta.model}
-                      {analysisMeta.durationMs ? ` · ${analysisMeta.durationMs} мс` : ""}
+
+                <div className="flex flex-col gap-2 border-t border-border/60 pt-4 sm:flex-row sm:items-center">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="submit"
+                      disabled={analyzing || !inputText.trim() || !selectedLeadId || !aiReady}
+                      data-testid="analyze-button"
+                    >
+                      <Wand2 className="h-4 w-4" aria-hidden="true" />
+                      {analyzing ? "Анализ…" : "Анализировать"}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleDraftReply}
+                      disabled={replying || !inputText.trim() || !selectedLeadId || !aiReady}
+                    >
+                      <FileText className="h-4 w-4" aria-hidden="true" />
+                      {replying ? "Генерация…" : "Черновик ответа"}
+                    </Button>
+                  </div>
+                  {analysisMeta?.durationMs ? (
+                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground sm:ml-auto">
+                      <Clock3 className="h-3 w-3" aria-hidden="true" />
+                      {analysisMeta.durationMs} мс
                     </span>
                   ) : null}
                 </div>
               </form>
 
               {analyzing ? (
-                <div className="space-y-2" aria-live="polite">
+                <div
+                  className="space-y-2 rounded-xl border border-border/60 bg-white/50 p-4"
+                  aria-live="polite"
+                >
+                  <div className="flex items-center gap-2 text-[11px] font-medium text-primary">
+                    <Activity className="h-3.5 w-3.5 animate-pulse-soft" aria-hidden="true" />
+                    Модель анализирует заявку…
+                  </div>
                   <Skeleton className="h-4 w-2/3" />
                   <Skeleton className="h-4 w-full" />
                   <Skeleton className="h-4 w-1/2" />
@@ -409,19 +458,64 @@ export default function AIAssistantPage() {
               warning={analysisWarning}
               onApplied={() => loadHistory(selectedLead.id)}
             />
-          ) : null}
+          ) : (
+            <Card className="overflow-hidden">
+              <CardContent className="grid gap-4 p-5 sm:grid-cols-3">
+                {[
+                  {
+                    icon: FileText,
+                    title: "Структурируйте",
+                    text: "AI извлекает суть, категорию, намерение и контакты из текста.",
+                  },
+                  {
+                    icon: Sparkles,
+                    title: "Оцените",
+                    text: "Lead Score, факторы, риски и недостающая информация — в одном отчёте.",
+                  },
+                  {
+                    icon: CheckCircle2,
+                    title: "Подтвердите",
+                    text: "Данные попадут в заявку только после вашего явного подтверждения.",
+                  },
+                ].map((step) => (
+                  <div key={step.title} className="flex items-start gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/[0.08] text-primary">
+                      <step.icon className="h-4 w-4" aria-hidden="true" />
+                    </span>
+                    <div>
+                      <p className="text-[12px] font-semibold text-ink">{step.title}</p>
+                      <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                        {step.text}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
 
           {draftReply ? (
-            <Card data-testid="draft-reply">
-              <CardHeader className="flex-row items-center justify-between space-y-0">
-                <CardTitle className="text-sm font-medium">Черновик ответа</CardTitle>
-                <Button variant="outline" size="sm" onClick={copyDraft}>
+            <Card data-testid="draft-reply" className="border-primary/[0.12]">
+              <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <FileText className="h-4 w-4" aria-hidden="true" />
+                  </span>
+                  <CardTitle>Черновик ответа</CardTitle>
+                </div>
+                <Button variant="secondary" size="sm" onClick={copyDraft}>
+                  <Copy className="h-3.5 w-3.5" aria-hidden="true" />
                   Скопировать
                 </Button>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="whitespace-pre-wrap break-words text-sm">{draftReply}</p>
-                <p className="text-xs text-muted-foreground">
+                <div className="rounded-xl border border-border/60 bg-muted/25 p-4">
+                  <p className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-ink/90">
+                    {draftReply}
+                  </p>
+                </div>
+                <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <LockKeyhole className="h-3 w-3" aria-hidden="true" />
                   Черновик не отправляется автоматически: проверьте и отредактируйте текст.
                 </p>
               </CardContent>
@@ -431,51 +525,80 @@ export default function AIAssistantPage() {
           {replyError ? <Alert variant="destructive">{replyError}</Alert> : null}
         </div>
 
-        <Card className="h-fit">
-          <CardHeader>
-            <CardTitle className="text-sm font-medium">История анализов</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {historyState === "loading" ? (
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-full" />
-                <Skeleton className="h-4 w-3/4" />
-                <Skeleton className="h-4 w-2/3" />
+        <aside className="space-y-4 xl:sticky xl:top-[88px] xl:self-start">
+          <Card>
+            <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-3">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <History className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div>
+                <CardTitle>История анализов</CardTitle>
+                <p className="mt-0.5 text-[11px] text-muted-foreground">Последние 10 запусков</p>
               </div>
-            ) : historyState === "error" ? (
-              <p className="text-sm text-destructive">Не удалось загрузить историю</p>
-            ) : !selectedLeadId ? (
-              <p className="text-sm text-muted-foreground">
-                Выберите заявку, чтобы увидеть историю.
-              </p>
-            ) : history.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Для этой заявки ещё не было запусков анализа.
-              </p>
-            ) : (
-              <ol className="space-y-3" data-testid="ai-history">
-                {history.map((item) => (
-                  <li key={item.id} className="rounded-lg border p-3 text-sm">
-                    <div className="flex items-center justify-between gap-2">
-                      <Badge variant={item.status === "SUCCESS" ? "success" : "destructive"}>
-                        {item.status === "SUCCESS" ? "Успешно" : "Ошибка"}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {formatDateTime(item.createdAt)}
-                      </span>
-                    </div>
-                    <p className="mt-2 truncate text-xs text-muted-foreground">{item.model}</p>
-                    {item.errorMessage ? (
-                      <p className="mt-1 break-words text-xs text-destructive">
-                        {item.errorMessage}
-                      </p>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </CardContent>
-        </Card>
+            </CardHeader>
+            <CardContent>
+              {historyState === "loading" ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-14 w-full rounded-xl" />
+                  <Skeleton className="h-14 w-full rounded-xl" />
+                  <Skeleton className="h-14 w-3/4 rounded-xl" />
+                </div>
+              ) : historyState === "error" ? (
+                <p className="text-[12px] text-destructive">Не удалось загрузить историю</p>
+              ) : !selectedLeadId ? (
+                <p className="rounded-xl border border-dashed border-border/80 bg-muted/25 px-3 py-5 text-[12px] text-muted-foreground">
+                  Выберите заявку, чтобы увидеть историю.
+                </p>
+              ) : history.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-border/80 bg-muted/25 px-3 py-5 text-[12px] text-muted-foreground">
+                  Для этой заявки ещё не было запусков анализа.
+                </p>
+              ) : (
+                <ol className="space-y-2" data-testid="ai-history">
+                  {history.map((item) => (
+                    <li
+                      key={item.id}
+                      className="rounded-xl border border-border/70 bg-white/60 p-3 transition-colors hover:bg-white"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <StatusBadge kind="analysis" value={item.status} />
+                        <span className="text-[10px] tabular-nums text-muted-foreground">
+                          {formatDateTime(item.createdAt)}
+                        </span>
+                      </div>
+                      <div className="mt-2 flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <Clock3 className="h-3 w-3" aria-hidden="true" />
+                        {typeof item.durationMs === "number" ? `${item.durationMs} мс` : "—"}
+                      </div>
+                      {item.errorMessage ? (
+                        <p className="mt-1.5 break-words text-[11px] text-destructive">
+                          {item.errorMessage}
+                        </p>
+                      ) : null}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-success/15 bg-success/[0.035]">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-success shadow-soft">
+                  <LockKeyhole className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="text-[12px] font-semibold text-ink">Контроль человека</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">
+                    AI не выполняет действия и не меняет заявку без подтверждения. Извлечённые
+                    контакты требуют ручной проверки.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
       </div>
     </div>
   );

@@ -30,14 +30,24 @@ export function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
             onClick={onNavigate}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              isActive
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              "group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 ease-premium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
+              isActive ? "nav-active" : "text-sidebar-muted hover:bg-muted/70 hover:text-ink",
             )}
           >
-            <Icon className="h-4 w-4" aria-hidden="true" />
-            {item.label}
+            <span
+              className={cn(
+                "flex h-8 w-8 shrink-0 items-center justify-center rounded-lg transition-all duration-150",
+                isActive
+                  ? "bg-brand-gradient text-white shadow-glow"
+                  : "bg-muted/70 text-muted-foreground group-hover:bg-white group-hover:text-primary group-hover:shadow-soft",
+              )}
+            >
+              <Icon className="h-[17px] w-[17px]" aria-hidden="true" />
+            </span>
+            <span className="truncate">{item.label}</span>
+            {isActive ? (
+              <span className="ml-auto h-1.5 w-1.5 rounded-full bg-primary" aria-hidden="true" />
+            ) : null}
           </Link>
         );
       })}

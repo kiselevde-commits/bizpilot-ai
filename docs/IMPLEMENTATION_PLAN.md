@@ -1,9 +1,9 @@
 # План реализации BizPilot AI
 
-**Версия:** 1.5 (этап 5 — финальная проверка и упаковка)  
-**Дата:** 2026-11-20  
+**Версия:** 1.7 (2026-11-23: Phase 1 acceptance фактически выполнена на изолированном кластере PostgreSQL 16)
+**Дата:** 2026-11-23
 **Источник:** `BizPilot_AI_OpenCode_TZ_v1.2.md`, включая раздел 24  
-**Текущий этап:** этапы 1–5 реализованы и проверены локально. Локальный PostgreSQL 16 используется для миграций, seed, API, integration- и E2E-тестов. Реальный AI-провайдер проверен 2026-11-20 (schema/prompt/`extractedContacts`). Реальный n8n + Telegram runtime — **BLOCKED** (нет credentials), локальный Docker Compose — **BLOCKED** (Docker не установлен; проверка в CI job `docker`).
+**Текущий этап:** исторические этапы 1–5 (нумерация этого плана) реализованы. 2026-11-23 на физически отдельном временном кластере PostgreSQL 16 (`127.0.0.1:55432`, БД `bizpilot_phase1_test`) фактически выполнены миграции, seed, все integration- и E2E-тесты, аудит связей, production build и автоматический visual-прогон: typecheck/lint/unit 271/integration 49/E2E 12/build PASS, 0 cross-workspace нарушений, 40 screenshots без overflow и console errors. Реальный AI-провайдер проверен 2026-11-20; в прогоне 2026-11-23 использовался mock AI. Реальный n8n + Telegram runtime — **BLOCKED** (нет credentials), локальный Docker Compose — **BLOCKED** (Docker не установлен; проверка в CI job `docker`). MANAGER allow/deny и подпись visual checklist — открыты.
 
 ## Легенда статусов
 
@@ -21,9 +21,25 @@
 | 2. CRUD и UI           | DONE (UI)                                      | CRM страницы: Dashboard, Leads, Contacts, Tasks (list/detail/create/edit), AI assistant integration point, login page. Проверено на локальном PostgreSQL 16.                                                                        |
 | 3. AI                  | DONE (бэкенд + тесты)                          | Реализованы `POST /api/ai/analyze`, `POST /api/leads/:id/apply-analysis`, `POST /api/ai/generate-reply`, `GET /api/ai/history`, провайдеры OpenAICompatible + Mock, Zod-валидация, retry, таймаут, история в БД. 94 теста проходят. |
 | 4. Automation          | DONE (код/тесты) / BLOCKED (runtime)           | Outbox, HMAC, n8n_processed, retry, API, Settings UI, n8n draft workflow реализованы. Runtime n8n/Telegram и Docker — BLOCKED: нет credentials/Docker.                                                                              |
-| 5. Проверка и упаковка | DONE (локально) / BLOCKED (Docker, n8n) | Typecheck/lint/unit 199/integration 24/E2E 8/build PASS; реальный AI smoke PASS; gitleaks 0; audit 0; Docker runtime BLOCKED; CI workflows созданы. |
-| 0.1 Workspace Security Patch | DONE (локальные проверки) | Lead (`contactId`, `assignedToId`) и Task (`leadId`, `contactId`, `assignedToId`) проверяются на принадлежность текущему Workspace до записи; чужой/несуществующий ID → 404. 23 новых unit-теста; typecheck/lint PASS; integration NOT RUN (нет отдельной тестовой БД). |
-| 0.2 Workspace Read Isolation | DONE (локальные проверки) | Read includes фильтруются по Workspace; `deleteLead` отклоняет legacy чужой Task с 409; read-only audit script; 12 PostgreSQL integration-тестов на изолированной схеме; typecheck/lint PASS. Аудит целевой БД не запускался. |
+| 5. Проверка и упаковка | DONE (локально) / BLOCKED (Docker, n8n) | Актуальный прогон 2026-11-23: typecheck/lint/unit 271/integration 49/E2E 12/build PASS на изолированном кластере PostgreSQL 16; аудит 0; 40 screenshots. Docker runtime BLOCKED; n8n/Telegram BLOCKED; MANAGER и visual sign-off открыты. |
+| 0.1 Workspace Security Patch | DONE (локальные проверки) | Lead (`contactId`, `assignedToId`) и Task (`leadId`, `contactId`, `assignedToId`) проверяются на принадлежность текущему Workspace до записи; чужой/несуществующий ID → 404. 23 новых unit-теста; typecheck/lint PASS; Write-path проверен integration-набором 2026-11-23. |
+| 0.2 Workspace Read Isolation | DONE (локальные проверки) | Read includes фильтруются по Workspace; `deleteLead` отклоняет legacy чужой Task с 409; read-only audit script. 2026-11-23: `workspace-read-isolation` и `workspace-isolation` PASS на изолированной БД, аудит 0 cross-workspace. Аудит реальной целевой БД не запускался. |
+| B1 Dashboard Workspace Isolation | DONE (локальные проверки) | KPI, воронка, 14-дневная динамика и preview-запросы (`priorityLeads`, `attentionTasks`) ограничены Workspace; relation-includes в preview фильтруются по Workspace. 2026-11-23: `dashboard-workspace-isolation` (8) и `dashboard-priority-tasks` (5) PASS на изолированной БД. |
+| Phase 1 Acceptance (2026-11-23) | DONE (automated) / открыты MANAGER и visual sign-off | `docs/PHASE_1_ACCEPTANCE_PLAN.md` фактически выполнен: миграции 3/3, seed идемпотентен 1/3/10/20/15/2, integration 49/49, E2E 12/12, build 34 app routes + middleware, 40 screenshots (1440/1280/768/375) с 0 overflow и 0 console errors. Первый integration-прогон дал транзиентный сбой, далее два прогона подряд 49/49. MANAGER allow/deny не проверялся; визуальный checklist не подписан. |
+
+### Согласованные этапы 4–8 (2026-11-22, отдельная нумерация)
+
+Это рабочая нумерация редизайна и dashboard hardening. Она **не** переименовывает
+исторические этапы 4 «Automation» и 5 «Проверка и упаковка» в разделах 6–7.
+
+| Этап | Статус | Комментарий |
+| --- | --- | --- |
+| 4. Premium UI redesign | DONE (код) / visual sign-off открыт | Токены и общие примитивы Executive Glass, layout/навигация, формы, login, dashboard, Leads/CRM/Tasks, AI Assistant, Settings. 2026-11-23: `pnpm lint`, `pnpm typecheck`, `pnpm build`, unit PASS; сняты 40 screenshots на 1440/1280/768/375 без горизонтального overflow и ошибок консоли. Осталось: подпись визуального checklist пользователем/Architect. |
+| 5. Workspace-scoped `priorityLeads` / `attentionTasks` | DONE (код + integration) | Запросы ограничены `workspaceId`; `contact`/`assignedTo` фильтруются по Workspace на чтении, foreign-связи не раскрывают имя. Порядок: заявки — `priority DESC, createdAt DESC, id DESC`; задачи — `dueDate ASC, priority DESC, createdAt DESC, id DESC`. Unit query-contract и PostgreSQL integration-тесты (`dashboard-priority-tasks`, `dashboard-workspace-isolation`) PASS 2026-11-23 на изолированной БД. |
+| 6. 14-day trend с UTC boundaries | DONE (код + integration) | Границы строятся через `make_timestamp(year, month, day, 0, 0, 0)` → `timestamp without time zone`, без `AT TIME ZONE` и неявного `timestamptz`. Окно — 13 предыдущих UTC-дней + текущий UTC-день, end exclusive на следующую UTC-полночь, ровно 14 zero-filled buckets. Unit-тест фиксирует SQL-конструкцию; boundary-тест (`dashboard-workspace-isolation`, 8 тестов) PASS 2026-11-23. |
+| 7. E2E order/tie-break/tasks/navigation | DONE (код + прогон) | `tests/e2e/dashboard.spec.ts` (4 сценария; всего 12) создаёт собственные уникальные заявки/задачи и проверяет порядок, tie-break, bounded preview, переходы, 14-строчную таблицу и навигацию. Прогон 2026-11-23: 12/12 PASS на изолированной seeded БД, собственный server Playwright, mock AI. MANAGER allow/deny по-прежнему не покрыт. |
+| 8. Документация | DONE | Этот план, `PROJECT_PLAYBOOK.md` §6/§14, prerequisites E2E/integration и вопросы коммерческого ядра обновлены; исторические этапы не переименованы. |
+| 9. Portfolio package (2026-11-23) | DONE (docs + artifacts) / MANAGER и visual sign-off открыты | `README.md`, `docs/DEMO.md` и `docs/PORTFOLIO_CASE_STUDY.md` приведены к фактическому состоянию. Фактически выполнены `pnpm typecheck`, `pnpm lint`, `pnpm test:unit` (271/271), `pnpm test:integration` (49/49), `pnpm test:e2e` (12/12), `pnpm build` (34 app routes + middleware), seed/миграции и аудит 0 на изолированном кластере; сняты 40 screenshots на чистой seeded БД. MANAGER allow/deny и подпись visual checklist остаются открытыми; реальный AI и n8n не вызывались. Итог: PORTFOLIO READY WITH LIMITATIONS. |
 
 > Мини-этапы 0.1 (write-path) и 0.2 (read/delete/historical tooling) выполнены
 > локально и ожидают проверки пользователем. Полная Workspace isolation не
@@ -33,6 +49,14 @@
 > результаты этапа 5 и текущие ограничения — в разделе 7.
 
 ## 1. Результаты аудита окружения (этап 0)
+
+> **Исторический снимок (2026-11-19).** Таблица ниже фиксирует окружение на
+> момент Этапа 0 и не описывает текущую среду. Актуальное состояние
+> (существующая локальная служба `postgresql-x64-16` на `5432`, локальный
+> `.env`) и результаты приёмки Phase 1 от 2026-11-23 на изолированном кластере
+> PostgreSQL 16 (`127.0.0.1:55432`, БД `bizpilot_phase1_test`) зафиксированы в
+> §7.5 и `docs/PHASE_1_ACCEPTANCE_PLAN.md`. Утверждения «PostgreSQL/psql
+> отсутствуют» и «Docker отсутствует» относятся только к дате снимка.
 
 | Проверка                | Факт                                         | Вывод                                                |
 | ----------------------- | -------------------------------------------- | ---------------------------------------------------- |
@@ -362,15 +386,17 @@ workflow. Реальный n8n + Telegram не проверены: нет creden
 ## 7. Этап 5 — Проверка и упаковка
 
 **Статус: DONE (локальная проверка) / BLOCKED (Docker runtime, n8n + Telegram).**
-Все автоматические проверки выполнены на локальном PostgreSQL 16; реальный AI
-smoke выполнен 2026-11-20. Docker в локальном окружении отсутствует, поэтому
-Compose runtime не заявляется как PASS.
+Автоматические проверки перезапущены 2026-11-23 на физически отдельном временном
+кластере PostgreSQL 16 (`127.0.0.1:55432`, БД `bizpilot_phase1_test`); реальный
+AI smoke выполнен 2026-11-20, в прогоне 2026-11-23 использовался mock AI. Docker
+в локальном окружении отсутствует, поэтому Compose runtime не заявляется как
+PASS.
 
 ### 7.1. Задачи
 
-- [x] Завершить unit-покрытие по разделу 14.1 ТЗ: 199 тестов / 20 файлов.
-- [x] Integration-тесты: CRUD/Workspace isolation, AI adapter/service, n8n webhook/outbox/`n8n_processed` — 24 теста / 4 файла.
-- [x] Два основных E2E-сценария (login → lead, AI mock) + auth/role и responsive UI: 8 сценариев.
+- [x] Завершить unit-покрытие по разделу 14.1 ТЗ: 2026-11-23 — 271 тест / 26 файлов.
+- [x] Integration-тесты: CRUD/Workspace isolation, AI adapter/service, n8n webhook/outbox/`n8n_processed`, dashboard — 2026-11-23 — 49 тестов / 7 файлов.
+- [x] E2E: auth/roles, CRM flow, AI mock, dashboard order/tie-break, responsive UI — 2026-11-23 — 12/12 сценариев.
 - [x] `pnpm typecheck`, `pnpm lint`, `pnpm build`.
 - [x] Security review и фактическая таблица в `docs/SECURITY.md`.
 - [x] `pnpm audit --prod`: 0 известных уязвимостей; `zod` 4.6.7, `deepmerge-ts`/`postcss`/`effect` закреплены.
@@ -415,6 +441,39 @@ Compose runtime не заявляется как PASS.
 - `/api/webhooks/lead-created` отсутствует; Settings read-only; Integration seed 2 записи.
 - Typecheck/lint/unit/integration/E2E/build — PASS; Docker/n8n runtime — BLOCKED.
 - Документы раздела 18 актуальны; ограничения перечислены в README/SECURITY.
+
+### 7.5. Фактический прогон 2026-11-23 (изолированный кластер PostgreSQL 16)
+
+Временный кластер создан из `F:\Program Files\PostgreSQL\16\bin` в
+`%TEMP%\opencode\pg-phase1-test`, слушал `127.0.0.1:55432`, БД
+`bizpilot_phase1_test`, пользователь `bizpilot_phase1`. Основная служба
+`postgresql-x64-16:5432` и `.env` не затрагивались. После прогона кластер
+остановлен (`pg_ctl stop -m fast`) и удалён.
+
+| Проверка | Команда/метод | Результат |
+| --- | --- | --- |
+| Typecheck | `pnpm typecheck` | PASS, 0 ошибок |
+| Lint | `pnpm lint` | PASS, 0 ошибок, 0 warnings |
+| Unit | `pnpm test:unit` | PASS, 271 тест / 26 файлов |
+| Migrations | `pnpm prisma migrate deploy` | PASS, 3/3, `n8n_processed` создана |
+| Seed ×2 | `pnpm prisma:seed` | PASS, идемпотентно 1/3/10/20/15/2, все `[DEMO]` |
+| Integration | `pnpm test:integration` | PASS, 49 тестов / 7 файлов (два прогона подряд) |
+| E2E | `pnpm test:e2e` | PASS, 12/12 (mock AI, собственный server) |
+| Workspace audit | `pnpm exec tsx scripts/audit-workspace-relations.ts` | PASS, 0 cross-workspace / 0 missing |
+| Build | `pnpm build` | PASS, 34 app routes + middleware (+ отдельный rebuild для `next start`) |
+| Visual run | Playwright, `pnpm start --port 3100` | PASS: 40 screenshots (10 страниц × 4 viewport), 0 overflow, 0 console errors |
+| Cleanup | `pg_ctl stop` + удаление каталога | PASS, порт 55432 свободен |
+
+Оговорки:
+
+- первый `pnpm test:integration` дал 1 failed + 5 skipped (FK-ошибки трёх
+  параллельных insert и одна ошибка соединения); два следующих прогона — 49/49,
+  данные вернулись ровно к seed. Логи PostgreSQL без `FATAL`; сбой не
+  воспроизведён, flaky-риск под наблюдением.
+- MANAGER allow/deny не проверялся (в 12 E2E нет MANAGER); визуальный checklist
+  не подписан. Полный приёмочный PASS поэтому не заявляется.
+- `pnpm start` требует production build: Playwright `pnpm dev` перезаписывает
+  `.next`, поэтому перед visual-run build выполнен повторно.
 
 ## 8. Сквозные задачи
 
@@ -480,6 +539,24 @@ Compose runtime не заявляется как PASS.
 | 2026-11-20 | 5     | Docker Compose       | `docker compose up`               | BLOCKED (Docker не установлен)             |
 | 2026-11-20 | 5     | n8n/Telegram runtime | реальный E2E                      | BLOCKED (нет credentials)                  |
 | 2026-11-21 | 5     | Audit                | `pnpm audit --prod`               | PASS: 0 известных уязвимостей (zod 4.6.7, deepmerge-ts 8.0.2) |
+| 2026-11-22 | 4–8   | Typecheck            | `pnpm typecheck`                  | PASS, 0 ошибок |
+| 2026-11-22 | 4–8   | Lint                 | `pnpm lint`                       | PASS, 0 ошибок |
+| 2026-11-22 | 4–8   | Unit                 | `pnpm test:unit`                  | PASS, 264 теста / 25 файлов |
+| 2026-11-22 | 4–8   | Build                | `pnpm build`                      | PASS, 35 routes |
+| 2026-11-22 | 7     | E2E guard            | `pnpm exec playwright test --list` | Без `TEST_DATABASE_URL` остановлен guard; с dummy local test URL перечислены 12 сценариев без запуска |
+| 2026-11-22 | 5–7   | Integration/E2E      | `pnpm test:integration`, `pnpm test:e2e` | NOT RUN: нет доказанной изолированной seeded БД; на dev/demo не направлялись |
+| 2026-11-22 | 4     | Visual review        | доступный artifact set           | NOT AVAILABLE: подтверждённых screenshots dashboard/mobile нет; визуальная приёмка не выполнялась |
+| 2026-11-23 | 1–7   | Typecheck            | `pnpm typecheck`                 | PASS, 0 ошибок |
+| 2026-11-23 | 1–7   | Lint                 | `pnpm lint`                      | PASS, 0 ошибок, 0 warnings |
+| 2026-11-23 | 1–7   | Unit                 | `pnpm test:unit`                 | PASS, 271 тест / 26 файлов |
+| 2026-11-23 | 1–7   | Migrations           | `pnpm prisma migrate deploy`     | PASS, 3/3 на `bizpilot_phase1_test` (127.0.0.1:55432) |
+| 2026-11-23 | 1–7   | Seed ×2              | `pnpm prisma:seed`               | PASS, 1/3/10/20/15/2, без дублей |
+| 2026-11-23 | 1–7   | Integration          | `pnpm test:integration`          | PASS, 49 тестов / 7 файлов (два прогона подряд) |
+| 2026-11-23 | 1–7   | E2E                  | `pnpm test:e2e`                  | PASS, 12/12, mock AI |
+| 2026-11-23 | 1–7   | Workspace audit      | `scripts/audit-workspace-relations.ts` | PASS, 0 cross-workspace / 0 missing |
+| 2026-11-23 | 1-7   | Build                | `pnpm build`                     | PASS, 34 app routes + middleware |
+| 2026-11-23 | 4     | Visual run           | Playwright, 1440/1280/768/375    | PASS: 40 screenshots, 0 overflow, 0 console errors (checklist не подписан) |
+| 2026-11-23 | —     | Cluster cleanup      | `pg_ctl stop -m fast` + remove   | PASS; порт 55432 свободен, каталог удалён |
 
 ## 10. Открытые вопросы
 
@@ -525,8 +602,17 @@ Compose runtime не заявляется как PASS.
 20. n8n 1.x basic-auth env может игнорироваться owner-account; UI n8n нельзя публиковать без защиты.
 21. PostgreSQL-роль `n8n_dedupe` создана SQL-скриптом, но runtime-проверка прав не выполнена (Docker/superuser access).
 22. Строгий граф переходов Lead/Task status не задан; MVP валидирует enum, AI не меняет status (см. вопрос 15).
+23. Изолированная seeded test DB доказана 2026-11-23: временный кластер PostgreSQL 16 на `127.0.0.1:55432`, БД `bizpilot_phase1_test`; integration 49/49 и E2E 12/12 PASS; кластер удалён после прогона.
+24. Визуальная приёмка: 2026-11-23 автоматически сняты 40 screenshots (1440/1280/768/375) без overflow и console errors; **подпись визуального checklist пользователем/Architect отсутствует**, визуальный PASS не заявляется.
+25. Первый integration-прогон 2026-11-23 дал транзиентный сбой (FK-ошибки при параллельных insert и одна ошибка соединения); два следующих прогона — 49/49. Возможный flaky-риск под наблюдением в CI.
+26. MANAGER allow/deny не покрыт E2E (только ADMIN/OPERATOR); полный приёмочный PASS требует отдельного test/manual evidence.
 
 ## 12. Следующий конкретный шаг
+
+> **Актуализация 2026-11-23.** Пункты 1–3 подраздела 2026-11-22 (integration/E2E
+> на изолированной БД и визуальная приёмка) фактически выполнены в прогоне
+> 2026-11-23 (см. §7.5). Оставшиеся внешние блокеры (Docker, n8n/Telegram,
+> GitHub Actions) по-прежнему требуют ресурсов пользователя.
 
 Этап 5 закрыт локально. Для полной внешней приёмки нужны:
 
@@ -541,6 +627,32 @@ Compose runtime не заявляется как PASS.
 
 Этапы 1–5 не переделывать без необходимости; runtime-проверки выполнять после
 предоставления credentials/Docker.
+
+### 2026-11-22 — после согласованных этапов 4–8
+
+1. **Integration/E2E DB:** выделить отдельную test-marked БД или schema, задать
+   `TEST_DATABASE_URL` и указать тот же адрес в `DATABASE_URL`; применить миграции
+   и seed только к этой БД. Без этого integration/E2E не запускать. E2E
+   дополнительно требует `SEED_ADMIN_PASSWORD` от seed этой БД.
+2. **E2E:** выполнить `pnpm test:e2e` на изолированной БД и приложить artifacts.
+   Guard запрещает remote host и переиспользование уже запущенного сервера.
+3. **Визуальная приёмка:** снять dashboard, списки, детали, формы и login на
+   1440/1280/768/375 после успешного E2E; без этих артефактов визуальный PASS не
+   заявлять.
+
+### 2026-11-23 — выполнено и осталось
+
+Выполнено: временный кластер PostgreSQL 16, миграции/seed, 7 integration-файлов,
+5 E2E-спецификаций, аудит связей, build и 40 screenshots на чистой seeded БД.
+
+Осталось (требует пользователя/Architect):
+
+1. Подписать визуальный checklist по `artifacts/visual-review/phase1/`.
+2. MANAGER allow/deny: delete и automation events разрешены, integration-admin
+   запрещён — отдельный test или manual-прогон.
+3. Docker Desktop + WSL2 для Compose runtime и `n8n_dedupe`.
+4. n8n + Telegram credentials для реального runtime; импорт/активация workflow.
+5. GitHub Actions `ci.yml`/`e2e.yml` (remote и secrets не настроены).
 
 ## 13. Журнал изменений плана
 
@@ -557,7 +669,10 @@ Compose runtime не заявляется как PASS.
 | 2026-11-20 | Integration: outbox test изолирован отдельной Workspace + `workspaceId` scope; flaky-тест стабилен (2 прогона) |
 | 2026-11-20 | Мини-этап 0.1: Workspace-проверка связей Lead/Task (`contactId`, `leadId`, `assignedToId`); 23 unit-теста, typecheck/lint PASS; integration NOT RUN (нет отдельной тестовой БД) |
 | 2026-11-20 | Мини-этап 0.2: read isolation для Lead/Task/Contact; `deleteLead` 409 при legacy чужом Task; read-only audit script; 12 PostgreSQL integration-тестов на изолированной схеме; target audit NOT RUN |
+| 2026-11-20 | Visual Redesign 1.0: дизайн-токены Executive Glass, UI-примитивы, Executive Dashboard, CRM-списки/детали, AI Studio, Settings, формы и login; 1440/1280/768/375; typecheck/lint/build/E2E/Vitest PASS |
 | 2026-11-21 | Zod обновлён до 4.6.7; `deepmerge-ts` 8.0.2; `pnpm audit --prod` — 0 известных уязвимостей; typecheck/unit 222/build PASS; integration 36/5 на изолированной схеме PASS |
+| 2026-11-22 | Согласованные этапы 4–8: preview tie-break `id`, UTC-окно тренда без алиасинга, E2E `dashboard.spec` без зависимости от seed, fail-closed E2E guard (`TEST_DATABASE_URL`, local-only, без reuse server), guard во всех DB integration-тестах, unit query-contract 5 тестов; lint/typecheck/unit 264/build PASS; integration/E2E NOT RUN (нет изолированной БД); визуальная приёмка не выполнена |
+| 2026-11-23 | Phase 1 acceptance выполнена на отдельном временном кластере PostgreSQL 16 (`127.0.0.1:55432`): миграции 3/3, seed ×2 (1/3/10/20/15/2), integration 49/7 PASS, E2E 12/12 PASS, аудит 0 cross-workspace, build 34 app routes + middleware, 40 screenshots без overflow/console errors; кластер остановлен и удалён; MANAGER и visual sign-off открыты |
 
 ## 14. Исправление критических дефектов (2026-11-19)
 
@@ -622,3 +737,97 @@ Compose runtime не заявляется как PASS.
 - Ключи в репозиторий не попадают; `.env` в `.gitignore`. Ключ, опубликованный в чате, следует перевыпустить.
 
 Следующий шаг: предоставить Docker/VPS и AI credentials для закрытия пунктов приёмки; этап 4 без отдельного решения не начинать.
+
+## 15. Premium Visual Redesign 1.0 (2026-11-20; ревизия 2026-11-22)
+
+**Статус: DONE (код) / visual sign-off открыт. Git commit не выполнялся.**
+
+### 15.1. Дизайн-система
+
+- Палитра Executive Glass закреплена в CSS-токенах `app/globals.css` и `tailwind.config.ts`: canvas `#F4F5FA`, surface, ink, indigo `#5968ED`, violet `#9671F5`, teal `#29B5AB`, success, warning, danger.
+- Добавлены токены радиусов (14–18 px), теней (`soft`, `card`, `lifted`, `glow`), градиентов, фокус-колец и таймингов 140–200 ms; `prefers-reduced-motion` отключает анимации.
+- Обновлены общие примитивы без дублирования дизайн-системы: `Button` (Primary Indigo/Violet, Secondary frosted glass, Ghost), `Card`, `Badge`, `Table`, `Input`, `Alert`, `Avatar`, `Dialog`, `DropdownMenu`, `Skeleton`, `Label`.
+- Добавлены переиспользуемые `Select`, `Textarea`, `StatusBadge` (lead/task/contact/priority/automation/integration/analysis) и `DataPagination`.
+- Lucide заменяет декоративные emoji в навигации, KPI, статусах, действиях, AI-панели, контактах, задачах и уведомлениях. Emoji внутри пользовательских данных и заявок не затрагивались.
+
+### 15.2. Переработанные экраны
+
+- **Dashboard**: KPI-карточки, воронка по статусам, 14-дневная динамика, приоритетные заявки (HIGH/URGENT, кроме CONVERTED/REJECTED) и задачи HIGH/URGENT с установленным сроком (TODO/IN_PROGRESS).
+- **Leads**: glass-фильтры, поиск, сортировка, цветные статусы/приоритеты, score, desktop-таблица и mobile-карточки, сохранение query-параметров и пагинации.
+- **Lead Detail**: executive-заголовок, score ring, AI-резюме, статусы/приоритет, клиент, связанные задачи и CTA следующего шага.
+- **Contacts**: CRM-список и карточки, аватары, контакты, связанные заявки/задачи; detail с метаданными и связями.
+- **Tasks**: статусы, приоритеты, сроки, просрочки, mobile-карточки, действия.
+- **AI Assistant**: Indigo/Violet-студия, health-статус, score ring, breakdown, обоснование, риски, рекомендации, недостающая информация, extracted contacts и явная зона подтверждения; технические model URI убраны из основной области.
+- **Settings**: профиль, Workspace, статусы n8n/Telegram, политика доставки, журнал событий и mobile-представление журнала.
+- **Формы и Login**: группы полей, состояния ошибок, единые select/input/textarea, frosted-панели и новая точка входа.
+
+### 15.3. Границы изменений
+
+- Не изменялись API-контракты, Prisma-схема, миграции, auth/роли, Workspace isolation, AI provider/prompt, HMAC/automation и логика сохранения результатов.
+- `services/dashboard.service.ts` дополнен read-only preview-запросами `priorityLeads` и `attentionTasks`; расчёт существующих метрик не менялся. В ревизии 2026-11-22 добавлены только детерминированные tie-break (`id`) к документированному порядку, UTC-окно тренда сделано без алиасинга даты, а сами preview остаются Workspace-scoped.
+
+### 15.4. Проверки
+
+| Проверка | Команда/метод | Результат |
+| --- | --- | --- |
+| Typecheck | `pnpm typecheck` | PASS (0 ошибок, 2026-11-23) |
+| Lint | `pnpm lint` | PASS (0 ошибок, 2026-11-23) |
+| Unit | `pnpm test:unit` | PASS, 271 тест / 26 файлов (2026-11-23) |
+| Production build | `pnpm build` | PASS, 34 app routes + middleware (2026-11-23) |
+| Integration | `pnpm test:integration` | PASS, 49 тестов / 7 файлов на `bizpilot_phase1_test` (2026-11-23) |
+| E2E | `pnpm test:e2e` | PASS, 12/12 сценариев, mock AI, собственный server (2026-11-23) |
+| Responsive | Playwright 1440/1280/768/375 | PASS: 0 horizontal overflow, 0 console/page errors (2026-11-23) |
+| Visual review | `artifacts/visual-review/phase1/` | 40 screenshots + `metrics.json`; автоматические проверки PASS, **checklist не подписан** |
+
+### 15.5. Известные ограничения
+
+- Автоматический visual-прогон выполнен (40 screenshots, 0 overflow, 0 console
+  errors), но визуальный checklist пользователем/Architect не подписан, поэтому
+  визуальный PASS не заявляется.
+- Integration- и E2E-прогоны выполнены на временном кластере PostgreSQL 16,
+  который после прогона удалён; повторный прогон требует снова поднять
+  изолированную БД.
+- MANAGER allow/deny не покрыт 12 E2E-сценариями.
+- Финальная фиксация изменений в Git ожидает отдельного разрешения пользователя.
+
+## 16. Коммерческое ядро: вопросы до реализации
+
+Сквозной путь «клиент → коммерческое предложение → заказ → оплата» описан в
+`PROJECT_PLAYBOOK.md` как главный коммерческий сценарий, но схема и реализация
+в этом этапе не затрагивались. До проектирования модели нужны продуктовые
+решения по следующим вопросам.
+
+1. **Структура предложения.** Из каких сущностей состоит предложение (позиции,
+   количество, цена за единицу, скидка, итог)? Допускаются ли произвольные
+   текстовые строки, несколько валют в одном предложении, несколько скидок?
+2. **Редакции и история.** Нужны ли версии/редакции предложения и неизменяемые
+   снимки отправленных клиенту редакций? Кто и когда может выпустить новую
+   редакцию, что видит клиент, как связываются редакции с заказом?
+3. **Acceptance.** Что считается принятием предложения: явное подтверждение
+   пользователя, отметка менеджера, загруженный документ, электронная подпись
+   или внешний статус? Нужны ли срок действия и причина отказа?
+4. **Преобразование в заказ.** Создаётся ли заказ из предложения один-к-одному,
+   частично или вручную? Копируются ли позиции/цены/скидки, можно ли изменить
+   их после создания заказа, что происходит при повторном преобразовании?
+5. **Валюты и налоги.** Валюта задаётся на workspace, клиента, предложение или
+   заказ? Нужны ли несколько валют, курсы, налоги включённые/исключённые,
+   ставки и правила округления? Как хранится история курса/ставки?
+6. **Частичные и полные оплаты.** Как учитываются несколько платежей по заказу,
+   частичная оплата, переплата, возврат и отмена платежа? Связывается ли платёж
+   с конкретной позицией или только с заказом?
+7. **Задолженность.** Рассчитывается ли задолженность из платежей или хранится
+   отдельным статусом? Нужны ли сроки оплаты, aging, напоминания и правила
+   закрытия задолженности?
+8. **Провайдер платежей.** Планируется ли интеграция с платёжным провайдером
+   (webhooks, идемпотентность, возвраты, PCI-scope) или MVP ограничивается
+   ручной фиксацией оплат? Кто подтверждает фактическое поступление денег?
+9. **Связь сущностей с клиентом и workspace.** Какая модель клиента является
+   основной (Contact, Company или обе)? Как предложения, заказы и платежи
+   проверяются на принадлежность текущему workspace, что происходит при
+   удалении/смене клиента и какие FK-правила допустимы?
+10. **Права и аудит.** Кто может создавать, согласовывать, принимать, отменять
+    предложение, заказ и платёж (ADMIN/MANAGER/OPERATOR)? Какие действия должны
+    попадать в ActivityLog и какие документы считаются юридически значимыми?
+
+До ответов на эти вопросы коммерческие сущности, миграции, API и UI не
+добавляются.

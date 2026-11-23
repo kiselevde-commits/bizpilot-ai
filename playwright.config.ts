@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import { resolveE2eServerConfig } from "./tests/helpers/e2e-server-config";
 
 /**
  * Load `.env` for local runs and CI overrides.
@@ -45,8 +46,15 @@ function loadDotEnv(): void {
 
 loadDotEnv();
 
-const baseURL = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const externalServer = Boolean(process.env.E2E_BASE_URL);
+/**
+ * Fail-closed E2E isolation.
+ *
+ * E2E creates and mutates CRM records, so it must never run against the local
+ * development/demo database or a remote deployment. The suite requires an
+ * explicitly test-marked, local PostgreSQL target and starts its own web server
+ * with that target; an existing or external server is never reused.
+ */
+const { baseURL, healthURL, command, testDatabaseUrl } = resolveE2eServerConfig(process.env);
 
 /**
  * E2E always runs with mock AI unless a developer explicitly opts into the real
@@ -81,19 +89,19 @@ export default defineConfig({
     navigationTimeout: 30_000,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: externalServer
-    ? undefined
-    : {
-        command: "corepack pnpm dev --port 3000",
-        url: "http://localhost:3000/api/ai/health",
-        reuseExistingServer: !process.env.CI,
-        timeout: 180_000,
-        env: {
-          AUTH_URL: baseURL,
-          AUTH_TRUST_HOST: "true",
-          APP_BASE_URL: baseURL,
-          AI_PROVIDER: useMockAI ? "mock" : (process.env.AI_PROVIDER ?? "mock"),
-          ALLOW_MOCK_AI: useMockAI ? "true" : (process.env.ALLOW_MOCK_AI ?? "false"),
-        },
-      },
+  webServer: {
+    command,
+    url: healthURL,
+    // Never reuse a server that may be connected to the development DB.
+    reuseExistingServer: false,
+    timeout: 180_000,
+    env: {
+      DATABASE_URL: testDatabaseUrl,
+      AUTH_URL: baseURL,
+      AUTH_TRUST_HOST: "true",
+      APP_BASE_URL: baseURL,
+      AI_PROVIDER: useMockAI ? "mock" : (process.env.AI_PROVIDER ?? "mock"),
+      ALLOW_MOCK_AI: useMockAI ? "true" : (process.env.ALLOW_MOCK_AI ?? "false"),
+    },
+  },
 });

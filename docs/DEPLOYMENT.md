@@ -110,8 +110,9 @@ Seed создаёт: 1 Workspace, 3 пользователя (ADMIN/MANAGER/OPER
 
 - `.github/workflows/ci.yml` — push/PR: `lint`, `typecheck`, `unit`,
   `integration` (PostgreSQL service + `migrate deploy`), `build`, `docker`.
-- `.github/workflows/e2e.yml` — `workflow_dispatch`: PostgreSQL, migrations,
-  seed, Playwright Chromium, artifacts; AI принудительно mock.
+- `.github/workflows/e2e.yml` — `workflow_dispatch`: PostgreSQL
+  `bizpilot_e2e_test`, migrations, seed, Playwright Chromium, artifacts; AI
+  принудительно mock, `TEST_DATABASE_URL` совпадает с `DATABASE_URL`.
 - Job `docker` создаёт временный `.env.docker` с тестовыми значениями,
   выполняет `docker compose config`, `build`, `up -d`, ждёт
   `http://localhost:3000/api/ai/health`, затем `down -v`. Секреты в workflow

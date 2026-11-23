@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, Link2, Save, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import {
   LEAD_CATEGORY_LABELS,
   LEAD_INTENT_LABELS,
@@ -113,186 +117,218 @@ export function LeadForm({
     }
   };
 
-  const selectClassName =
-    "h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-
   return (
-    <form onSubmit={handleSubmit} data-hydrated={hydrated} className="space-y-6">
+    <form onSubmit={handleSubmit} data-hydrated={hydrated} className="space-y-4">
       {error ? (
         <div
           role="alert"
-          className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive"
+          className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/[0.06] p-4 text-[13px] text-destructive"
         >
-          {error}
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>{error}</p>
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="title">Название заявки</Label>
-          <Input
-            id="title"
-            required
-            maxLength={255}
-            defaultValue={initialData?.title ?? ""}
-            placeholder="Краткое описание заявки"
-            name="title"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="source">Источник</Label>
-          <Input
-            id="source"
-            maxLength={100}
-            defaultValue={initialData?.source ?? ""}
-            placeholder="Откуда поступила заявка"
-            name="source"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="status">Статус</Label>
-          <select
-            id="status"
-            className={selectClassName}
-            defaultValue={initialData?.status ?? "NEW"}
-            name="status"
-          >
-            {Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="priority">Приоритет</Label>
-          <select
-            id="priority"
-            className={selectClassName}
-            defaultValue={initialData?.priority ?? "MEDIUM"}
-            name="priority"
-          >
-            {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="message">Текст заявки</Label>
-        <textarea
-          id="message"
-          required
-          maxLength={20000}
-          className="min-h-48 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          defaultValue={initialData?.message ?? ""}
-          placeholder="Подробный текст заявки"
-          name="message"
-        />
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="category">Категория</Label>
-          <select
-            id="category"
-            className={selectClassName}
-            defaultValue={initialData?.category ?? ""}
-            name="category"
-          >
-            <option value="">—</option>
-            {CATEGORY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="intent">Намерение</Label>
-          <select
-            id="intent"
-            className={selectClassName}
-            defaultValue={initialData?.intent ?? ""}
-            name="intent"
-          >
-            <option value="">—</option>
-            {INTENT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="customerType">Тип клиента</Label>
-          <select
-            id="customerType"
-            className={selectClassName}
-            defaultValue={initialData?.customerType ?? ""}
-            name="customerType"
-          >
-            <option value="">—</option>
-            {CUSTOMER_TYPE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="contactId">Контакт</Label>
-          <select
-            id="contactId"
-            className={selectClassName}
-            defaultValue={initialData?.contactId ?? ""}
-            name="contactId"
-            disabled={contacts.length === 0}
-          >
-            <option value="">Не связан</option>
-            {contacts.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          {contacts.length === 0 ? (
-            <p className="text-xs text-muted-foreground">
-              Нет доступных контактов — создайте контакт в разделе «Контакты».
+      <Card>
+        <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <CardTitle>Основное</CardTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Что за обращение и откуда оно поступило
             </p>
-          ) : null}
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="assignedToId">Ответственный</Label>
-          <select
-            id="assignedToId"
-            className={selectClassName}
-            defaultValue={initialData?.assignedToId ?? ""}
-            name="assignedToId"
-            disabled={assignees.length === 0}
-          >
-            <option value="">Не назначен</option>
-            {assignees.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <Label htmlFor="title">Название заявки</Label>
+            <Input
+              id="title"
+              required
+              maxLength={255}
+              defaultValue={initialData?.title ?? ""}
+              placeholder="Краткое описание заявки"
+              name="title"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="source">Источник</Label>
+            <Input
+              id="source"
+              maxLength={100}
+              defaultValue={initialData?.source ?? ""}
+              placeholder="Откуда поступила заявка"
+              name="source"
+            />
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="status">Статус</Label>
+              <Select
+                id="status"
+                defaultValue={initialData?.status ?? "NEW"}
+                name="status"
+              >
+                {Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="priority">Приоритет</Label>
+              <Select
+                id="priority"
+                defaultValue={initialData?.priority ?? "MEDIUM"}
+                name="priority"
+              >
+                {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
-        <Button type="submit" disabled={loading || !hydrated}>
-          {loading ? "Сохранение…" : mode === "create" ? "Создать заявку" : "Сохранить"}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.back()}>
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle>Текст заявки</CardTitle>
+          <p className="text-[11px] text-muted-foreground">
+            Полный текст обращения. AI использует его для анализа, но не меняет заявку без
+            подтверждения.
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="message">Текст заявки</Label>
+            <Textarea
+              id="message"
+              required
+              maxLength={20000}
+              className="min-h-48"
+              defaultValue={initialData?.message ?? ""}
+              placeholder="Подробный текст заявки"
+              name="message"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle>Классификация</CardTitle>
+          <p className="text-[11px] text-muted-foreground">
+            Необязательные поля — их может заполнить AI-анализ после подтверждения.
+          </p>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="category">Категория</Label>
+            <Select id="category" defaultValue={initialData?.category ?? ""} name="category">
+              <option value="">—</option>
+              {CATEGORY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="intent">Намерение</Label>
+            <Select id="intent" defaultValue={initialData?.intent ?? ""} name="intent">
+              <option value="">—</option>
+              {INTENT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="customerType">Тип клиента</Label>
+            <Select
+              id="customerType"
+              defaultValue={initialData?.customerType ?? ""}
+              name="customerType"
+            >
+              <option value="">—</option>
+              {CUSTOMER_TYPE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-aqua/10 text-aqua">
+            <Link2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <CardTitle>Связи и ответственный</CardTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Привяжите заявку к контакту и назначьте владельца
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="contactId">Контакт</Label>
+            <Select
+              id="contactId"
+              defaultValue={initialData?.contactId ?? ""}
+              name="contactId"
+              disabled={contacts.length === 0}
+            >
+              <option value="">Не связан</option>
+              {contacts.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+            {contacts.length === 0 ? (
+              <p className="text-[11px] text-muted-foreground">
+                Нет доступных контактов — создайте контакт в разделе «Контакты».
+              </p>
+            ) : null}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="assignedToId">Ответственный</Label>
+            <Select
+              id="assignedToId"
+              defaultValue={initialData?.assignedToId ?? ""}
+              name="assignedToId"
+              disabled={assignees.length === 0}
+            >
+              <option value="">Не назначен</option>
+              {assignees.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-col-reverse gap-2 rounded-card border border-border/80 bg-white/70 p-3 shadow-soft backdrop-blur-sm sm:flex-row sm:items-center sm:justify-end">
+        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={loading}>
+          <X className="h-4 w-4" aria-hidden="true" />
           Отмена
+        </Button>
+        <Button type="submit" disabled={loading || !hydrated}>
+          <Save className="h-4 w-4" aria-hidden="true" />
+          {loading ? "Сохранение…" : mode === "create" ? "Создать заявку" : "Сохранить"}
         </Button>
       </div>
     </form>

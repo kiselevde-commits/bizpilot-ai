@@ -49,3 +49,7 @@ prisma/*.db-journal
 
 # misc
 *.tsbuildinfo
+
+# local tooling and review artifacts
+.opencode/
+artifacts/

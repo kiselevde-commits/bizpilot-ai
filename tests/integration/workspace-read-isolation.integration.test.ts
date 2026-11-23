@@ -1,3 +1,5 @@
+// Must stay first: it refuses an unsafe target before Prisma is imported.
+import "./helpers/enforce-test-database";
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, LogIn } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,12 +60,12 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
     <form onSubmit={handleSubmit} data-hydrated={hydrated} className="space-y-4">
       {error ? (
         <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       ) : null}
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label htmlFor="email">Email</Label>
         <Input
           id="email"
@@ -80,7 +80,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <Label htmlFor="password">Пароль</Label>
         <Input
           id="password"
@@ -94,8 +94,12 @@ export function LoginForm({ callbackUrl }: { callbackUrl: string }) {
         />
       </div>
 
-      <Button type="submit" className="w-full" disabled={isPending || !hydrated}>
-        {isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+      <Button type="submit" size="lg" className="w-full" disabled={isPending || !hydrated}>
+        {isPending ? (
+          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+        ) : (
+          <LogIn className="h-4 w-4" aria-hidden="true" />
+        )}
         Войти
       </Button>
     </form>

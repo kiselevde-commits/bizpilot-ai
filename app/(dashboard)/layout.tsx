@@ -15,12 +15,16 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen flex-col overflow-hidden">
-      <Header user={user} />
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar user={user} />
-        <main className="flex-1 overflow-y-auto bg-background p-4 md:p-6 lg:ml-64">
-          {children}
+    <div className="relative min-h-screen bg-canvas">
+      <div
+        className="pointer-events-none fixed inset-0 bg-canvas-glow"
+        aria-hidden="true"
+      />
+      <Sidebar user={user} />
+      <div className="relative flex min-h-screen flex-col lg:pl-64">
+        <Header user={user} />
+        <main className="flex-1 px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pt-8">
+          <div className="mx-auto w-full max-w-[1320px]">{children}</div>
         </main>
       </div>
     </div>

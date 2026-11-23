@@ -2,6 +2,8 @@ import "server-only";
 import { getContact } from "@/services/contact.service";
 import { requireUser } from "@/lib/auth/session";
 import { notFound } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { ContactForm } from "@/components/contacts/contact-form";
 import { PageHeader } from "@/components/layout/page-header";
 
@@ -20,19 +22,19 @@ export default async function ContactsEditPage({
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="mx-auto max-w-3xl">
       <PageHeader
+        eyebrow="Edit contact"
         title="Редактировать контакт"
         description={contact.name}
         actions={
-          <div className="flex items-center gap-2">
-            <a
-              href={`/crm/${contact.id}`}
-              className="text-sm text-primary hover:underline"
-            >
-              Назад к контакту
-            </a>
-          </div>
+          <Link
+            href={`/crm/${contact.id}`}
+            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Назад к контакту
+          </Link>
         }
       />
       <ContactForm

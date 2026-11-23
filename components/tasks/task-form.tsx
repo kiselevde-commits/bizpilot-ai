@@ -2,10 +2,14 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { AlertTriangle, CheckSquare, Link2, Save, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { PRIORITY_LABELS, TASK_STATUS_LABELS } from "@/lib/utils/labels";
 import type { SelectOption } from "@/components/leads/lead-form";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
@@ -89,143 +93,164 @@ export function TaskForm({
     }
   };
 
-  const selectClassName =
-    "h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring";
-
   return (
-    <form onSubmit={handleSubmit} data-hydrated={hydrated} className="space-y-6">
+    <form onSubmit={handleSubmit} data-hydrated={hydrated} className="space-y-4">
       {error ? (
         <div
           role="alert"
-          className="rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive"
+          className="flex items-start gap-3 rounded-xl border border-destructive/20 bg-destructive/[0.06] p-4 text-[13px] text-destructive"
         >
-          {error}
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+          <p>{error}</p>
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="title">Название задачи</Label>
-        <Input
-          id="title"
-          required
-          maxLength={255}
-          defaultValue={initialData?.title ?? ""}
-          placeholder="Что нужно сделать"
-          name="title"
-        />
-      </div>
+      <Card>
+        <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-iris/10 text-iris">
+            <CheckSquare className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <CardTitle>Основное</CardTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Что нужно сделать, в какие сроки и с каким приоритетом
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="title">Название задачи</Label>
+            <Input
+              id="title"
+              required
+              maxLength={255}
+              defaultValue={initialData?.title ?? ""}
+              placeholder="Что нужно сделать"
+              name="title"
+            />
+          </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="status">Статус</Label>
-          <select
-            id="status"
-            className={selectClassName}
-            defaultValue={initialData?.status ?? "TODO"}
-            name="status"
-          >
-            {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="priority">Приоритет</Label>
-          <select
-            id="priority"
-            className={selectClassName}
-            defaultValue={initialData?.priority ?? "MEDIUM"}
-            name="priority"
-          >
-            {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="dueDate">Срок выполнения</Label>
-          <Input
-            id="dueDate"
-            type="datetime-local"
-            defaultValue={initialData?.dueDate ?? ""}
-            name="dueDate"
-          />
-        </div>
-      </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="status">Статус</Label>
+              <Select id="status" defaultValue={initialData?.status ?? "TODO"} name="status">
+                {Object.entries(TASK_STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="priority">Приоритет</Label>
+              <Select
+                id="priority"
+                defaultValue={initialData?.priority ?? "MEDIUM"}
+                name="priority"
+              >
+                {Object.entries(PRIORITY_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="dueDate">Срок выполнения</Label>
+              <Input
+                id="dueDate"
+                type="datetime-local"
+                defaultValue={initialData?.dueDate ?? ""}
+                name="dueDate"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="description">Описание</Label>
-        <textarea
-          id="description"
-          maxLength={2000}
-          className="min-h-32 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          defaultValue={initialData?.description ?? ""}
-          placeholder="Подробное описание задачи"
-          name="description"
-        />
-      </div>
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle>Описание</CardTitle>
+          <p className="text-[11px] text-muted-foreground">
+            Контекст и критерии готовности задачи
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="description">Описание</Label>
+            <Textarea
+              id="description"
+              maxLength={2000}
+              className="min-h-32"
+              defaultValue={initialData?.description ?? ""}
+              placeholder="Подробное описание задачи"
+              name="description"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="leadId">Связанная заявка</Label>
-          <select
-            id="leadId"
-            className={selectClassName}
-            defaultValue={initialData?.leadId ?? ""}
-            name="leadId"
-          >
-            <option value="">Не связана</option>
-            {leads.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="contactId">Связанный контакт</Label>
-          <select
-            id="contactId"
-            className={selectClassName}
-            defaultValue={initialData?.contactId ?? ""}
-            name="contactId"
-          >
-            <option value="">Не связан</option>
-            {contacts.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="assignedToId">Ответственный</Label>
-          <select
-            id="assignedToId"
-            className={selectClassName}
-            defaultValue={initialData?.assignedToId ?? ""}
-            name="assignedToId"
-          >
-            <option value="">Не назначен</option>
-            {assignees.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <Card>
+        <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-aqua/10 text-aqua">
+            <Link2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <CardTitle>Связи и ответственный</CardTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Свяжите задачу с заявкой и контактом, назначьте владельца
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="leadId">Связанная заявка</Label>
+            <Select id="leadId" defaultValue={initialData?.leadId ?? ""} name="leadId">
+              <option value="">Не связана</option>
+              {leads.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="contactId">Связанный контакт</Label>
+            <Select id="contactId" defaultValue={initialData?.contactId ?? ""} name="contactId">
+              <option value="">Не связан</option>
+              {contacts.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="assignedToId">Ответственный</Label>
+            <Select
+              id="assignedToId"
+              defaultValue={initialData?.assignedToId ?? ""}
+              name="assignedToId"
+            >
+              <option value="">Не назначен</option>
+              {assignees.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
-        <Button type="submit" disabled={loading || !hydrated}>
-          {loading ? "Сохранение…" : mode === "create" ? "Создать задачу" : "Сохранить"}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.back()}>
+      <div className="flex flex-col-reverse gap-2 rounded-card border border-border/80 bg-white/70 p-3 shadow-soft backdrop-blur-sm sm:flex-row sm:items-center sm:justify-end">
+        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={loading}>
+          <X className="h-4 w-4" aria-hidden="true" />
           Отмена
+        </Button>
+        <Button type="submit" disabled={loading || !hydrated}>
+          <Save className="h-4 w-4" aria-hidden="true" />
+          {loading ? "Сохранение…" : mode === "create" ? "Создать задачу" : "Сохранить"}
         </Button>
       </div>
     </form>

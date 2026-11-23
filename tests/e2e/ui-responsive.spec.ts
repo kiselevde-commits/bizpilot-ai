@@ -26,6 +26,17 @@ test("UI audit: no horizontal overflow and no console errors", async ({ page }) 
 
   await login(page, "ADMIN");
 
+  await expect(page.getByRole("link", { name: "Список", exact: true })).toHaveAttribute(
+    "href",
+    "/tasks?sort=dueDate:asc",
+  );
+
+  // The trend chart must expose its title, period summary and per-date values.
+  const trendTable = page.getByRole("table", { name: "Динамика заявок по датам" });
+  await expect(trendTable).toBeAttached();
+  await expect(trendTable.locator("tbody tr")).toHaveCount(14);
+  await expect(page.locator("#leads-by-day-summary")).toContainText("Всего заявок за период");
+
   for (const viewport of VIEWPORTS) {
     await page.setViewportSize(viewport);
 

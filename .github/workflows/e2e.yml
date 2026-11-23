@@ -11,8 +11,9 @@ env:
   NODE_VERSION: "24.20.0"
   PNPM_VERSION: "9.15.9"
   CI: "true"
-  DATABASE_URL: "postgresql://bizpilot:bizpilot_ci_password@localhost:5432/bizpilot?schema=public"
-  SHADOW_DATABASE_URL: "postgresql://bizpilot:bizpilot_ci_password@localhost:5432/bizpilot_shadow?schema=public"
+  DATABASE_URL: "postgresql://bizpilot:bizpilot_ci_password@localhost:5432/bizpilot_e2e_test?schema=public"
+  TEST_DATABASE_URL: "postgresql://bizpilot:bizpilot_ci_password@localhost:5432/bizpilot_e2e_test?schema=public"
+  SHADOW_DATABASE_URL: "postgresql://bizpilot:bizpilot_ci_password@localhost:5432/bizpilot_e2e_test_shadow?schema=public"
   AUTH_SECRET: "ci_only_auth_secret_at_least_32_chars"
   AUTH_URL: "http://localhost:3000"
   AUTH_TRUST_HOST: "true"
@@ -33,17 +34,21 @@ jobs:
   playwright:
     name: Playwright (chromium)
     runs-on: ubuntu-latest
+    # POSTGRES_PASSWORD for this ephemeral service container is intentionally
+    # static: GitHub Actions' `jobs.<job>.services` schema does not support
+    # runtime shell generation in the service declaration, and the password
+    # stays inside the isolated, throwaway runner container.
     services:
       postgres:
         image: postgres:16.16-alpine
         env:
           POSTGRES_USER: bizpilot
           POSTGRES_PASSWORD: bizpilot_ci_password
-          POSTGRES_DB: bizpilot
+          POSTGRES_DB: bizpilot_e2e_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U bizpilot -d bizpilot"
+          --health-cmd "pg_isready -U bizpilot -d bizpilot_e2e_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20

@@ -1,3 +1,5 @@
+// Must stay first: it refuses an unsafe target before Prisma is imported.
+import "./helpers/enforce-test-database";
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/database/prisma";

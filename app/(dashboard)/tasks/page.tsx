@@ -1,8 +1,22 @@
+import Link from "next/link";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CalendarClock,
+  CheckSquare,
+  Clock3,
+  Link2,
+  Plus,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
 import { listTasks, type TaskListQuery } from "@/services/task.service";
 import { requireUser } from "@/lib/auth/session";
 import { paginationQuerySchema } from "@/lib/validation/query";
 import { PRIORITIES, TASK_STATUSES } from "@/lib/constants";
-import { TASK_STATUS_LABELS, PRIORITY_LABELS, formatDateTime } from "@/lib/utils/labels";
+import { PRIORITY_LABELS, TASK_STATUS_LABELS, formatDateTime } from "@/lib/utils/labels";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,11 +29,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { Alert } from "@/components/ui/alert";
-import Link from "next/link";
+import { cn } from "@/lib/utils/cn";
 
 export const metadata = { title: "Задачи" };
+
+type TaskRow = {
+  lead?: { title: string } | null;
+  contact?: { name: string } | null;
+  assignedTo?: { name: string } | null;
+};
+
+function isOverdue(task: { dueDate: Date | null; status: string }): boolean {
+  return (
+    task.dueDate !== null &&
+    new Date(task.dueDate).getTime() < Date.now() &&
+    task.status !== "DONE" &&
+    task.status !== "CANCELLED"
+  );
+}
 
 export default async function TasksPage({
   searchParams,
@@ -69,14 +101,18 @@ export default async function TasksPage({
   const hasFilters = Boolean(search || status || priority || overdue !== undefined);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <PageHeader
+        eyebrow="Next actions"
         title="Задачи"
-        description="Управление задачами и сроками выполнения"
+        description="Следующие шаги по заявкам и клиентам: сроки, приоритеты и ответственные."
         actions={
-          <Link href="/tasks/new">
-            <Button>Новая задача</Button>
-          </Link>
+          <Button asChild>
+            <Link href="/tasks/new">
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Новая задача
+            </Link>
+          </Button>
         }
       />
 
@@ -84,256 +120,296 @@ export default async function TasksPage({
         method="get"
         action="/tasks"
         aria-label="Фильтры задач"
-        className="grid gap-3 rounded-lg bg-muted p-4 sm:grid-cols-2 lg:grid-cols-5"
+        className="glass-panel rounded-card p-4"
       >
-        <div className="flex min-w-0 flex-col gap-1">
-          <label htmlFor="task-search" className="text-xs font-medium text-muted-foreground">
-            Поиск
-          </label>
-          <input
-            id="task-search"
-            name="search"
-            type="search"
-            defaultValue={search}
-            placeholder="Название или описание"
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          />
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+            <SlidersHorizontal className="h-4 w-4 text-primary" aria-hidden="true" />
+            Фильтры и сортировка
+          </div>
+          {hasFilters ? (
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+              активны
+            </span>
+          ) : null}
         </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <label htmlFor="task-status" className="text-xs font-medium text-muted-foreground">
-            Статус
-          </label>
-          <select
-            id="task-status"
-            name="status"
-            defaultValue={status ?? ""}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <option value="">Все статусы</option>
-            {TASK_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {TASK_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <label htmlFor="task-priority" className="text-xs font-medium text-muted-foreground">
-            Приоритет
-          </label>
-          <select
-            id="task-priority"
-            name="priority"
-            defaultValue={priority ?? ""}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <option value="">Все приоритеты</option>
-            {PRIORITIES.map((p) => (
-              <option key={p} value={p}>
-                {PRIORITY_LABELS[p]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="flex min-w-0 flex-col gap-1">
-          <label htmlFor="task-overdue" className="text-xs font-medium text-muted-foreground">
-            Просроченные
-          </label>
-          <select
-            id="task-overdue"
-            name="overdue"
-            defaultValue={overdue === undefined ? "" : String(overdue)}
-            className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <option value="">Все задачи</option>
-            <option value="true">Только просроченные</option>
-            <option value="false">Без просроченных</option>
-          </select>
-        </div>
-        <div className="flex items-end gap-2">
-          <Button type="submit">Применить</Button>
-          <Link href="/tasks">
-            <Button type="button" variant="outline">
-              Сбросить
+
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-10">
+          <div className="flex min-w-0 flex-col gap-1.5 lg:col-span-4">
+            <label htmlFor="task-search" className="text-[11px] font-medium text-muted-foreground">
+              Поиск
+            </label>
+            <div className="relative">
+              <Search
+                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                id="task-search"
+                name="search"
+                type="search"
+                defaultValue={search}
+                placeholder="Название или описание"
+                className="pl-9"
+              />
+            </div>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-1.5 lg:col-span-2">
+            <label htmlFor="task-status" className="text-[11px] font-medium text-muted-foreground">
+              Статус
+            </label>
+            <Select id="task-status" name="status" defaultValue={status ?? ""}>
+              <option value="">Все статусы</option>
+              {TASK_STATUSES.map((value) => (
+                <option key={value} value={value}>
+                  {TASK_STATUS_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-1.5 lg:col-span-2">
+            <label
+              htmlFor="task-priority"
+              className="text-[11px] font-medium text-muted-foreground"
+            >
+              Приоритет
+            </label>
+            <Select id="task-priority" name="priority" defaultValue={priority ?? ""}>
+              <option value="">Все приоритеты</option>
+              {PRIORITIES.map((value) => (
+                <option key={value} value={value}>
+                  {PRIORITY_LABELS[value]}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-1.5 lg:col-span-2">
+            <label
+              htmlFor="task-overdue"
+              className="text-[11px] font-medium text-muted-foreground"
+            >
+              Просроченные
+            </label>
+            <Select
+              id="task-overdue"
+              name="overdue"
+              defaultValue={overdue === undefined ? "" : String(overdue)}
+            >
+              <option value="">Все задачи</option>
+              <option value="true">Только просроченные</option>
+              <option value="false">Без просроченных</option>
+            </Select>
+          </div>
+
+          <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-10 lg:justify-end">
+            <Button type="submit">
+              <Search className="h-4 w-4" aria-hidden="true" />
+              Применить
             </Button>
-          </Link>
+            <Button asChild variant="ghost">
+              <Link href="/tasks">
+                <RotateCcw className="h-4 w-4" aria-hidden="true" />
+                Сбросить
+              </Link>
+            </Button>
+          </div>
         </div>
       </form>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-sm font-medium">
-            Список задач
-            <span className="ml-2 font-normal text-muted-foreground">
-              {result.pagination.total}
+      <Card className="overflow-hidden">
+        <CardHeader className="flex-row items-center justify-between space-y-0 border-b border-border/60 pb-4">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-iris/10 text-iris">
+              <CheckSquare className="h-4 w-4" aria-hidden="true" />
             </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {result.items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
-              <h2 className="text-lg font-medium">
-                {hasFilters ? "По фильтрам ничего не найдено" : "Задач пока нет"}
-              </h2>
-              <p className="text-sm text-muted-foreground">
-                {hasFilters
-                  ? "Измените условия поиска или сбросьте фильтры."
-                  : "Создайте первую задачу и назначьте ответственного."}
+            <div>
+              <CardTitle>Список задач</CardTitle>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                {result.pagination.total} задач в рабочем пространстве
               </p>
+            </div>
+          </div>
+          {hasFilters ? (
+            <span className="hidden rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-[11px] text-muted-foreground sm:inline-flex">
+              Фильтр применён
+            </span>
+          ) : null}
+        </CardHeader>
+        <CardContent className="p-0 sm:p-0">
+          {result.items.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-iris/10 text-iris">
+                <CheckSquare className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 className="text-[15px] font-semibold">
+                  {hasFilters ? "По фильтрам ничего не найдено" : "Задач пока нет"}
+                </h2>
+                <p className="mt-1 max-w-sm text-[13px] text-muted-foreground">
+                  {hasFilters
+                    ? "Измените условия поиска или сбросьте фильтры."
+                    : "Создайте первую задачу и назначьте ответственного."}
+                </p>
+              </div>
               <Link
                 href={hasFilters ? "/tasks" : "/tasks/new"}
-                className="mt-2 text-sm text-primary hover:underline"
+                className="mt-1 text-[13px] font-medium text-primary hover:underline"
               >
                 {hasFilters ? "Сбросить фильтры" : "Создать задачу"}
               </Link>
             </div>
           ) : (
-            <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="min-w-[14rem]">Задача</TableHead>
-                    <TableHead className="text-center">Статус</TableHead>
-                    <TableHead className="hidden text-center sm:table-cell">Приоритет</TableHead>
-                    <TableHead className="hidden lg:table-cell">Заявка</TableHead>
-                    <TableHead className="hidden xl:table-cell">Контакт</TableHead>
-                    <TableHead className="hidden md:table-cell">Срок</TableHead>
-                    <TableHead className="hidden lg:table-cell">Ответственный</TableHead>
-                    <TableHead className="text-right">Действия</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {result.items.map((item) => {
-                    const task = item as typeof item & {
-                      lead?: { title: string } | null;
-                      contact?: { name: string } | null;
-                      assignedTo?: { name: string } | null;
-                    };
-                    return (
-                      <TableRow key={task.id}>
-                        <TableCell>
-                          <Link
-                            href={`/tasks/${task.id}`}
-                            className="font-medium hover:underline"
+            <>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[15rem] pl-5">Задача</TableHead>
+                      <TableHead className="text-center">Статус</TableHead>
+                      <TableHead className="hidden text-center sm:table-cell">Приоритет</TableHead>
+                      <TableHead className="hidden lg:table-cell">Срок</TableHead>
+                      <TableHead className="hidden xl:table-cell">Заявка</TableHead>
+                      <TableHead className="pr-5 text-right">Действия</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {result.items.map((item) => {
+                      const task = item as typeof item & TaskRow;
+                      const late = isOverdue({ dueDate: task.dueDate, status: task.status });
+
+                      return (
+                        <TableRow key={task.id} className="group">
+                          <TableCell className="pl-5">
+                            <Link
+                              href={`/tasks/${task.id}`}
+                              className="block max-w-[24rem] truncate font-semibold text-ink transition-colors group-hover:text-primary"
+                            >
+                              {task.title}
+                            </Link>
+                            <span className="mt-0.5 flex items-center gap-1 text-[11px] text-muted-foreground">
+                              <UserRound className="h-3 w-3" aria-hidden="true" />
+                              {task.assignedTo?.name || "Без ответственного"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <StatusBadge kind="task" value={task.status} />
+                          </TableCell>
+                          <TableCell className="hidden text-center sm:table-cell">
+                            <StatusBadge kind="priority" value={task.priority} />
+                          </TableCell>
+                          <TableCell className="hidden whitespace-nowrap lg:table-cell">
+                            {task.dueDate ? (
+                              <span
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 text-[12px]",
+                                  late ? "font-medium text-destructive" : "text-muted-foreground",
+                                )}
+                              >
+                                <Clock3 className="h-3.5 w-3.5" aria-hidden="true" />
+                                {formatDateTime(task.dueDate)}
+                              </span>
+                            ) : (
+                              <span className="text-[12px] text-muted-foreground">—</span>
+                            )}
+                            {late ? (
+                              <span className="mt-1 block text-[10px] font-semibold text-destructive">
+                                Просрочена
+                              </span>
+                            ) : null}
+                          </TableCell>
+                          <TableCell className="hidden max-w-[12rem] truncate text-[13px] text-muted-foreground xl:table-cell">
+                            {task.lead?.title || "—"}
+                          </TableCell>
+                          <TableCell className="pr-5 text-right">
+                            <Link
+                              href={`/tasks/${task.id}`}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-primary/10 hover:text-primary"
+                              aria-label="Открыть карточку задачи"
+                            >
+                              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                            </Link>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="divide-y divide-border/60 md:hidden">
+                {result.items.map((item) => {
+                  const task = item as typeof item & TaskRow;
+                  const late = isOverdue({ dueDate: task.dueDate, status: task.status });
+
+                  return (
+                    <Link
+                      key={task.id}
+                      href={`/tasks/${task.id}`}
+                      className={cn(
+                        "block px-4 py-4 transition-colors active:bg-muted/50",
+                        late && "bg-destructive/[0.025]",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-[14px] font-semibold text-ink">{task.title}</p>
+                          <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-muted-foreground">
+                            <UserRound className="h-3 w-3" aria-hidden="true" />
+                            {task.assignedTo?.name || "Без ответственного"}
+                          </p>
+                        </div>
+                        <ArrowUpRight
+                          className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                      </div>
+                      <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                        <StatusBadge kind="task" value={task.status} />
+                        <StatusBadge kind="priority" value={task.priority} />
+                        {task.dueDate ? (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+                              late
+                                ? "border-destructive/20 bg-destructive/10 text-destructive"
+                                : "border-border/70 bg-white/70 text-muted-foreground",
+                            )}
                           >
-                            {task.title}
-                          </Link>
-                          <span className="mt-0.5 block text-xs text-muted-foreground lg:hidden">
-                            {task.assignedTo?.name
-                              ? `Ответственный: ${task.assignedTo.name}`
-                              : "Без ответственного"}
+                            {late ? (
+                              <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                            ) : (
+                              <CalendarClock className="h-3 w-3" aria-hidden="true" />
+                            )}
+                            {late ? "Просрочена: " : ""}
+                            {formatDateTime(task.dueDate)}
                           </span>
-                        </TableCell>
-                        <TableCell className="text-center text-sm">
-                          <Badge variant="secondary">{TASK_STATUS_LABELS[task.status]}</Badge>
-                        </TableCell>
-                        <TableCell className="hidden text-center sm:table-cell">
-                          <Badge variant="outline">{PRIORITY_LABELS[task.priority]}</Badge>
-                        </TableCell>
-                        <TableCell className="hidden max-w-[12rem] truncate text-sm lg:table-cell">
-                          {task.lead?.title || "—"}
-                        </TableCell>
-                        <TableCell className="hidden max-w-[10rem] truncate text-sm xl:table-cell">
-                          {task.contact?.name || "—"}
-                        </TableCell>
-                        <TableCell className="hidden whitespace-nowrap text-sm text-muted-foreground md:table-cell">
-                          {task.dueDate ? formatDateTime(task.dueDate) : "—"}
-                        </TableCell>
-                        <TableCell className="hidden max-w-[10rem] truncate text-sm text-muted-foreground lg:table-cell">
-                          {task.assignedTo?.name || "—"}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Link
-                            href={`/tasks/${task.id}`}
-                            className="text-sm text-primary hover:underline"
-                          >
-                            Открыть
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                        ) : null}
+                        {task.lead ? (
+                          <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-white/70 px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                            <Link2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+                            <span className="truncate">{task.lead.title}</span>
+                          </span>
+                        ) : null}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            </>
           )}
         </CardContent>
-        <Pagination
+        <DataPagination
           page={result.pagination.page}
           limit={result.pagination.limit}
           total={result.pagination.total}
           totalPages={result.pagination.totalPages}
           basePath="/tasks"
-          search={search}
-          status={status ?? ""}
-          priority={priority ?? ""}
-          overdue={overdue}
-          sort={sort}
+          query={{ search, status: status ?? "", priority: priority ?? "", overdue, sort, limit }}
         />
       </Card>
-    </div>
-  );
-}
-
-function Pagination({
-  page,
-  limit,
-  total,
-  totalPages,
-  basePath,
-  search,
-  status,
-  priority,
-  overdue,
-  sort,
-}: {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-  basePath: string;
-  search: string;
-  status: string;
-  priority: string;
-  overdue: boolean | undefined;
-  sort: string;
-}) {
-  if (totalPages <= 1) return null;
-
-  const params = new URLSearchParams();
-  if (search) params.set("search", search);
-  if (status) params.set("status", status);
-  if (priority) params.set("priority", priority);
-  if (overdue !== undefined) params.set("overdue", String(overdue));
-  params.set("sort", sort);
-  params.set("limit", String(limit));
-
-  return (
-    <div className="flex flex-col items-start justify-between gap-2 border-t px-4 py-3 sm:flex-row sm:items-center">
-      <p className="text-xs text-muted-foreground">
-        Строка {(page - 1) * limit + 1}–{Math.min(page * limit, total)} из {total}
-      </p>
-      <div className="flex items-center gap-3">
-        {page > 1 ? (
-          <Link
-            href={`${basePath}?page=${page - 1}&${params.toString()}`}
-            className="text-sm text-primary hover:underline"
-          >
-            ← Назад
-          </Link>
-        ) : null}
-        <span className="text-xs text-muted-foreground">
-          Страница {page} из {totalPages}
-        </span>
-        {page < totalPages ? (
-          <Link
-            href={`${basePath}?page=${page + 1}&${params.toString()}`}
-            className="text-sm text-primary hover:underline"
-          >
-            Вперёд →
-          </Link>
-        ) : null}
-      </div>
     </div>
   );
 }

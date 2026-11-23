@@ -3,9 +3,13 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { AlertTriangle, Building2, Save, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useHydrated } from "@/lib/hooks/use-hydrated";
 import { CONTACT_STATUSES } from "@/lib/constants";
@@ -133,19 +137,25 @@ export function ContactForm({ initialData, mode, contactId }: ContactFormProps) 
   }
 
   return (
-    <form onSubmit={handleSubmit} data-hydrated={hydrated} className="space-y-6">
+    <form onSubmit={handleSubmit} data-hydrated={hydrated} className="space-y-4">
       {error ? (
         <div
           role="alert"
-          className="space-y-3 rounded-lg border border-destructive bg-destructive/10 p-4 text-sm text-destructive"
+          className="space-y-3 rounded-xl border border-destructive/20 bg-destructive/[0.06] p-4 text-[13px] text-destructive"
         >
-          <p>{error}</p>
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            <p>{error}</p>
+          </div>
 
           {duplicates.length > 0 ? (
             <div className="space-y-3">
-              <ul className="space-y-1">
+              <ul className="space-y-1.5">
                 {duplicates.map((candidate) => (
-                  <li key={candidate.id}>
+                  <li
+                    key={candidate.id}
+                    className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/15 bg-white/60 px-3 py-2"
+                  >
                     <Link
                       href={`/crm/${candidate.id}`}
                       className="font-medium underline underline-offset-4"
@@ -153,7 +163,7 @@ export function ContactForm({ initialData, mode, contactId }: ContactFormProps) 
                     >
                       {candidate.name}
                     </Link>
-                    <span className="ml-2 text-xs text-muted-foreground">
+                    <span className="text-[11px] text-muted-foreground">
                       {[candidate.email, candidate.phone].filter(Boolean).join(" · ") ||
                         "без контактов"}
                     </span>
@@ -163,7 +173,7 @@ export function ContactForm({ initialData, mode, contactId }: ContactFormProps) 
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="secondary"
                   onClick={handleForceCreate}
                   disabled={loading}
                   data-testid="force-create-contact"
@@ -171,11 +181,9 @@ export function ContactForm({ initialData, mode, contactId }: ContactFormProps) 
                   Всё равно создать
                 </Button>
                 {duplicates[0] ? (
-                  <Link href={`/crm/${duplicates[0].id}`}>
-                    <Button type="button" variant="ghost">
-                      Открыть дубль
-                    </Button>
-                  </Link>
+                  <Button asChild variant="ghost">
+                    <Link href={`/crm/${duplicates[0].id}`}>Открыть дубль</Link>
+                  </Button>
                 ) : null}
               </div>
             </div>
@@ -183,87 +191,119 @@ export function ContactForm({ initialData, mode, contactId }: ContactFormProps) 
         </div>
       ) : null}
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="name">Имя</Label>
-        <Input
-          id="name"
-          required
-          maxLength={255}
-          defaultValue={initialData?.name ?? ""}
-          placeholder="Имя контакта"
-          name="name"
-        />
-      </div>
+      <Card>
+        <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-aqua/10 text-aqua">
+            <UserRound className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <CardTitle>Основное</CardTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Кто ваш клиент и в каком статусе находится контакт
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <Label htmlFor="name">Имя</Label>
+            <Input
+              id="name"
+              required
+              maxLength={255}
+              defaultValue={initialData?.name ?? ""}
+              placeholder="Имя контакта"
+              name="name"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="company">Компания</Label>
+            <Input
+              id="company"
+              maxLength={255}
+              defaultValue={initialData?.company ?? ""}
+              placeholder="Название компании"
+              name="company"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="status">Статус</Label>
+            <Select id="status" defaultValue={initialData?.status ?? "NEW"} name="status">
+              {CONTACT_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {CONTACT_STATUS_LABELS[status]}
+                </option>
+              ))}
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="company">Компания</Label>
-          <Input
-            id="company"
-            maxLength={255}
-            defaultValue={initialData?.company ?? ""}
-            placeholder="Название компании"
-            name="company"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="email">Email</Label>
-          <Input
-            id="email"
-            type="email"
-            defaultValue={initialData?.email ?? ""}
-            placeholder="email@example.com"
-            name="email"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="phone">Телефон</Label>
-          <Input
-            id="phone"
-            type="tel"
-            defaultValue={initialData?.phone ?? ""}
-            placeholder="+7 999 999-99-99"
-            name="phone"
-          />
-        </div>
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="status">Статус</Label>
-          <select
-            id="status"
-            className="h-10 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-            defaultValue={initialData?.status ?? "NEW"}
-            name="status"
-          >
-            {CONTACT_STATUSES.map((s) => (
-              <option key={s} value={s}>
-                {CONTACT_STATUS_LABELS[s]}
-              </option>
-            ))}
-          </select>
-        </div>
-      </div>
+      <Card>
+        <CardHeader className="flex-row items-center gap-2.5 space-y-0 pb-4">
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Building2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div>
+            <CardTitle>Способы связи</CardTitle>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              Нужен хотя бы один способ связи — email или телефон
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              defaultValue={initialData?.email ?? ""}
+              placeholder="email@example.com"
+              name="email"
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="phone">Телефон</Label>
+            <Input
+              id="phone"
+              type="tel"
+              defaultValue={initialData?.phone ?? ""}
+              placeholder="+7 999 999-99-99"
+              name="phone"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="notes">Примечания</Label>
-        <textarea
-          id="notes"
-          maxLength={2000}
-          className="h-32 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-          defaultValue={initialData?.notes ?? ""}
-          placeholder="Дополнительная информация о контакте"
-          name="notes"
-        />
-        <p className="text-xs text-muted-foreground">
-          Нужен хотя бы один способ связи — email или телефон.
-        </p>
-      </div>
+      <Card>
+        <CardHeader className="pb-4">
+          <CardTitle>Примечания</CardTitle>
+          <p className="text-[11px] text-muted-foreground">
+            Контекст, который поможет команде перед следующим контактом
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="notes">Примечания</Label>
+            <Textarea
+              id="notes"
+              maxLength={2000}
+              className="min-h-32"
+              defaultValue={initialData?.notes ?? ""}
+              placeholder="Дополнительная информация о контакте"
+              name="notes"
+            />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
-        <Button type="submit" disabled={loading || !hydrated}>
-          {loading ? "Сохранение…" : mode === "create" ? "Создать контакт" : "Сохранить"}
-        </Button>
-        <Button type="button" variant="outline" onClick={() => router.back()}>
+      <div className="flex flex-col-reverse gap-2 rounded-card border border-border/80 bg-white/70 p-3 shadow-soft backdrop-blur-sm sm:flex-row sm:items-center sm:justify-end">
+        <Button type="button" variant="ghost" onClick={() => router.back()} disabled={loading}>
+          <X className="h-4 w-4" aria-hidden="true" />
           Отмена
+        </Button>
+        <Button type="submit" disabled={loading || !hydrated}>
+          <Save className="h-4 w-4" aria-hidden="true" />
+          {loading ? "Сохранение…" : mode === "create" ? "Создать контакт" : "Сохранить"}
         </Button>
       </div>
     </form>

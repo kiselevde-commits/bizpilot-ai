@@ -987,7 +987,7 @@ pnpm prisma db seed
 2. AI adapter: valid response, invalid JSON (retry), timeout (AbortController), provider error, token/duration history, no raw prompt storage.
 3. n8n/outbox: valid HMAC, invalid signature, stale timestamp, replay, callback idempotency, retry schedule, 4xx/5xx/429, `n8n_processed` atomic dedupe, `FOR UPDATE SKIP LOCKED` claim, lease expiry, concurrent dispatch.
 
-Тесты читают `DATABASE_URL` (локальный PostgreSQL 16) и используют только созданные ими строки с cleanup. В CI должна быть отдельная тестовая БД; production БД для тестов не используется. Реальные n8n/Telegram вызовы в integration-тестах не выполняются (fake client), это фиксируется как BLOCKED для runtime.
+Тесты используют `DATABASE_URL`, который обязан точно совпадать с `TEST_DATABASE_URL`; имя БД или schema должны содержать маркер `test`, host — только localhost/127.0.0.1/IPv6 loopback или CI alias `postgres`. Guard импортируется до Prisma и до `beforeAll`; remote host, `dev`/`production`/`demo`/`seed` и обычная dev-БД отклоняются. Тесты используют только созданные ими строки с cleanup. Production/demo БД для тестов не используется. Реальные n8n/Telegram вызовы в integration-тестах не выполняются (fake client), это фиксируется как BLOCKED для runtime.
 
 ### 15.3. E2E (Playwright)
 
@@ -996,10 +996,16 @@ pnpm prisma db seed
 3. Auth/role guards: redirect без сессии, API 401, OPERATOR DELETE/automation 403.
 4. Responsive UI: Dashboard/Leads/CRM/Tasks/AI/Settings на 1440/1280/768/375 без горизонтального overflow и ошибок консоли.
 
-E2E поднимает dev-сервер и использует `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`;
-реальный provider не вызывается (только при явном `E2E_REAL_AI=true`). Отчёт и
-artifacts сохраняются в CI. Production build проверяется отдельно командой
-`pnpm build`.
+E2E fail-closed запускает собственный dev-сервер с `DATABASE_URL=TEST_DATABASE_URL`
+и `AI_PROVIDER=mock` + `ALLOW_MOCK_AI=true`; существующий сервер не
+переиспользуется, поэтому прогон не может случайно попасть на dev/demo БД.
+`TEST_DATABASE_URL` обязателен, host — только localhost/127.0.0.1/IPv6 loopback,
+имя БД или schema содержит `test`. Внешний сервер и `E2E_BASE_URL` запрещены
+fail-closed: при заданных `E2E_BASE_URL`/`E2E_EXTERNAL_SERVER_ISOLATED`
+конфигурация падает, а base URL и health URL всегда выводятся из одного адреса
+собственного webServer Playwright (`http://localhost:3000`). Реальный provider
+не вызывается (только при явном `E2E_REAL_AI=true`). Отчёт и artifacts
+сохраняются в CI. Production build проверяется отдельно командой `pnpm build`.
 
 ### 15.4. Реальный AI smoke
 
@@ -1013,7 +1019,9 @@ artifacts сохраняются в CI. Production build проверяется 
 
 `.github/workflows/ci.yml` (push/pull_request): jobs `lint`, `typecheck`, `unit`, `integration` (Postgres service + `migrate deploy`), `build`, `docker` (Compose config/build/up + health, base profile); pnpm frozen lockfile.
 
-`.github/workflows/e2e.yml` (`workflow_dispatch`): Postgres, migrations, seed, Playwright Chromium, upload report/artifacts; mock AI.
+`.github/workflows/e2e.yml` (`workflow_dispatch`): Postgres `bizpilot_e2e_test`,
+migrations, seed, Playwright Chromium, upload report/artifacts; mock AI и
+`TEST_DATABASE_URL`, совпадающий с `DATABASE_URL`.
 
 CI не вызывает реальный LLM. Docker job использует временный `.env.docker` с
 тестовыми значениями; n8n-профиль в CI не запускается.

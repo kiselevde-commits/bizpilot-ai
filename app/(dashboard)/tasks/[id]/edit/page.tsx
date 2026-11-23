@@ -1,6 +1,7 @@
 import "server-only";
 import { notFound } from "next/navigation";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { getTask } from "@/services/task.service";
 import { requireUser } from "@/lib/auth/session";
 import { TaskForm } from "@/components/tasks/task-form";
@@ -34,12 +35,17 @@ export default async function TasksEditPage({
   }
 
   return (
-    <div className="max-w-3xl">
+    <div className="mx-auto max-w-4xl">
       <PageHeader
+        eyebrow="Edit task"
         title="Редактировать задачу"
         description={task.title}
         actions={
-          <Link href={`/tasks/${task.id}`} className="text-sm text-primary hover:underline">
+          <Link
+            href={`/tasks/${task.id}`}
+            className="inline-flex items-center gap-1.5 text-[12px] font-medium text-muted-foreground transition-colors hover:text-primary"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
             Назад к задаче
           </Link>
         }

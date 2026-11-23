@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 
 export function LogoutButton() {
   return (
-    <Button variant="outline" onClick={() => void signOut({ callbackUrl: "/login" })}>
-      <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
+    <Button variant="secondary" onClick={() => void signOut({ callbackUrl: "/login" })}>
+      <LogOut className="h-4 w-4" aria-hidden="true" />
       Выйти
     </Button>
   );
